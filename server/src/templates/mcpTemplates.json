@@ -1,0 +1,870 @@
+{
+  "github": {
+    "type": "github",
+    "displayName": "GitHub MCP",
+    "defaultName": "GitHub MCP",
+    "description": "저장소, 코드, 이슈, Pull Request와 GitHub Actions에 접근하는 MCP입니다.",
+    "principles": [
+      "처음에는 특정 저장소 읽기 전용으로 시작하세요.",
+      "Push와 병합은 매번 승인하도록 두세요.",
+      "Secrets 접근과 공개 범위 변경은 기본 차단하세요.",
+      "main 브랜치 직접 Push는 금지하는 편이 안전합니다."
+    ],
+    "permissionGroups": [
+      {
+        "label": "읽기 권한",
+        "permissions": [
+          {
+            "id": "github.read.repo_info",
+            "name": "저장소 정보 읽기",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "저장소 이름, 설명, 기본 브랜치 같은 정보를 확인합니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "공개 저장소 또는 특정 저장소로 범위를 제한하세요."
+          },
+          {
+            "id": "github.read.code",
+            "name": "코드 읽기",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "소스 코드를 읽을 수 있어 내부 구조가 노출될 수 있습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "필요한 저장소와 브랜치만 읽도록 제한하세요."
+          },
+          {
+            "id": "github.read.commits",
+            "name": "커밋 기록 읽기",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "커밋 메시지와 변경 이력에 민감한 단서가 포함될 수 있습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "최근 기간 또는 특정 브랜치로 조회 범위를 줄이세요."
+          },
+          {
+            "id": "github.read.branches",
+            "name": "브랜치 읽기",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "브랜치 목록과 보호 상태를 확인합니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "특정 저장소로 제한하세요."
+          },
+          {
+            "id": "github.read.issues",
+            "name": "이슈 읽기",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "이슈에는 고객 정보나 장애 내용이 포함될 수 있습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "라벨 또는 저장소 범위를 제한하세요."
+          },
+          {
+            "id": "github.read.pull_requests",
+            "name": "Pull Request 읽기",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "리뷰 의견과 변경 계획을 읽습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "필요한 저장소의 Pull Request만 읽으세요."
+          },
+          {
+            "id": "github.read.actions",
+            "name": "Actions 실행 기록 읽기",
+            "category": "read",
+            "riskScore": 20,
+            "scoreImpact": 5,
+            "reason": "빌드 로그에 환경 이름이나 내부 경로가 포함될 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "민감 로그 마스킹이 켜진 저장소만 허용하세요."
+          }
+        ]
+      },
+      {
+        "label": "쓰기 권한",
+        "permissions": [
+          {
+            "id": "github.write.file_create",
+            "name": "파일 생성",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "저장소에 새 파일을 추가할 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "새 브랜치에서만 파일을 만들고 diff를 확인하세요."
+          },
+          {
+            "id": "github.write.file_modify",
+            "name": "파일 수정",
+            "category": "write",
+            "riskScore": 55,
+            "scoreImpact": 20,
+            "reason": "코드나 설정을 바꿔 서비스 동작에 영향을 줄 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "수정 전후 diff를 보여주고 승인 후 적용하세요."
+          },
+          {
+            "id": "github.write.file_delete",
+            "name": "파일 삭제",
+            "category": "delete",
+            "riskScore": 70,
+            "scoreImpact": 30,
+            "reason": "중요 파일을 삭제하면 빌드나 운영에 문제가 생길 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "삭제 대신 보관 브랜치나 백업 커밋을 먼저 만드세요."
+          },
+          {
+            "id": "github.write.commit_create",
+            "name": "커밋 생성",
+            "category": "write",
+            "riskScore": 45,
+            "scoreImpact": 15,
+            "reason": "변경 이력을 저장소에 남깁니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "자동 생성 커밋 메시지에 민감정보가 없는지 확인하세요."
+          },
+          {
+            "id": "github.write.push",
+            "name": "코드 Push",
+            "category": "write",
+            "riskScore": 65,
+            "scoreImpact": 25,
+            "reason": "원격 저장소에 코드를 업로드해 팀 작업에 영향을 줄 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "보호된 브랜치에는 직접 Push하지 말고 Pull Request를 사용하세요."
+          },
+          {
+            "id": "github.write.branch_create",
+            "name": "브랜치 생성",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "작업 브랜치를 만들 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "자동 생성 브랜치 이름 규칙을 정하세요."
+          },
+          {
+            "id": "github.write.branch_delete",
+            "name": "브랜치 삭제",
+            "category": "delete",
+            "riskScore": 65,
+            "scoreImpact": 30,
+            "reason": "작업 이력을 잃거나 팀원의 작업을 방해할 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "병합 완료 브랜치만 삭제하고 대상 브랜치를 재확인하세요."
+          },
+          {
+            "id": "github.write.issue_create",
+            "name": "이슈 생성",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "공개 저장소에서는 작성 내용이 외부에 보일 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "이슈 본문에 토큰, 로그 원문, 개인정보가 없는지 검사하세요."
+          },
+          {
+            "id": "github.write.issue_modify",
+            "name": "이슈 수정",
+            "category": "write",
+            "riskScore": 40,
+            "scoreImpact": 15,
+            "reason": "기존 이슈 내용을 바꿔 추적 정보를 흐릴 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "수정 전 원문을 로그에 요약해 남기세요."
+          },
+          {
+            "id": "github.write.comment_create",
+            "name": "댓글 작성",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "공개 댓글은 외부에 노출될 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "민감정보 마스킹 후 작성하세요."
+          },
+          {
+            "id": "github.write.pr_create",
+            "name": "Pull Request 생성",
+            "category": "write",
+            "riskScore": 45,
+            "scoreImpact": 15,
+            "reason": "변경 제안을 공개하거나 리뷰 흐름을 시작합니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "초안 PR로 열고 자동 병합은 끄세요."
+          },
+          {
+            "id": "github.write.pr_merge",
+            "name": "Pull Request 병합",
+            "category": "write",
+            "riskScore": 70,
+            "scoreImpact": 35,
+            "reason": "코드가 기본 브랜치에 반영되어 배포로 이어질 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "리뷰 승인과 CI 통과 후 수동 병합하세요."
+          },
+          {
+            "id": "github.write.workflow_run",
+            "name": "Workflow 실행",
+            "category": "execute",
+            "riskScore": 60,
+            "scoreImpact": 25,
+            "reason": "CI/CD 작업이 실행되어 배포나 외부 호출이 발생할 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "배포 워크플로는 별도 승인으로 분리하세요."
+          }
+        ]
+      },
+      {
+        "label": "민감 권한",
+        "permissions": [
+          {
+            "id": "github.sensitive.secrets",
+            "name": "저장소 Secrets 접근",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 50,
+            "reason": "비밀키와 토큰은 유출 시 계정과 서비스가 침해될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "Secrets 원문 대신 존재 여부나 이름 일부만 확인하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "github.sensitive.settings",
+            "name": "저장소 설정 변경",
+            "category": "write",
+            "riskScore": 85,
+            "scoreImpact": 45,
+            "reason": "보호 규칙, 웹훅, 접근 정책이 바뀔 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "설정 변경은 관리자 화면에서 직접 승인하세요.",
+            "critical": true
+          },
+          {
+            "id": "github.sensitive.collaborators",
+            "name": "Collaborator 변경",
+            "category": "credential",
+            "riskScore": 85,
+            "scoreImpact": 45,
+            "reason": "다른 사용자에게 저장소 접근 권한을 줄 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "권한 요청은 별도 관리자 승인 절차로 처리하세요.",
+            "critical": true
+          },
+          {
+            "id": "github.sensitive.visibility",
+            "name": "공개·비공개 설정 변경",
+            "category": "write",
+            "riskScore": 90,
+            "scoreImpact": 60,
+            "reason": "비공개 코드가 공개되거나 공개 프로젝트가 숨겨질 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "저장소 공개 범위 변경은 MCP에서 차단하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "github.sensitive.all_repositories",
+            "name": "모든 저장소 접근",
+            "category": "credential",
+            "riskScore": 80,
+            "scoreImpact": 45,
+            "reason": "불필요한 저장소까지 읽거나 변경할 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "필요한 저장소만 allowlist로 지정하세요.",
+            "critical": true
+          },
+          {
+            "id": "github.sensitive.organization",
+            "name": "조직 전체 접근",
+            "category": "credential",
+            "riskScore": 90,
+            "scoreImpact": 50,
+            "reason": "조직의 여러 저장소와 멤버 권한에 영향을 줄 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "조직 전체 권한 대신 저장소 단위 앱 설치를 사용하세요.",
+            "critical": true
+          }
+        ]
+      }
+    ]
+  },
+  "filesystem": {
+    "type": "filesystem",
+    "displayName": "Filesystem MCP",
+    "defaultName": "Filesystem MCP",
+    "description": "로컬 파일과 폴더를 읽거나 수정하는 MCP입니다.",
+    "principles": [
+      "허용된 프로젝트 폴더만 접근하게 하세요.",
+      ".env, .git, SSH 키는 기본 제외하세요.",
+      "삭제 전 사용자 승인을 받으세요.",
+      "대량 수정 전 변경 파일 목록과 diff를 보여주세요."
+    ],
+    "permissionGroups": [
+      {
+        "label": "읽기",
+        "permissions": [
+          {
+            "id": "filesystem.read.list",
+            "name": "파일 목록 확인",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "폴더 구조와 파일 이름을 확인합니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "프로젝트 폴더 내부만 목록을 읽도록 제한하세요."
+          },
+          {
+            "id": "filesystem.read.content",
+            "name": "파일 내용 읽기",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "소스, 문서, 설정 파일 내용을 읽을 수 있습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": ".env와 키 파일은 제외 목록에 넣으세요."
+          },
+          {
+            "id": "filesystem.read.search",
+            "name": "파일 검색",
+            "category": "read",
+            "riskScore": 15,
+            "scoreImpact": 5,
+            "reason": "검색 결과에 민감한 파일명이 포함될 수 있습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "검색 루트를 프로젝트 폴더로 제한하세요."
+          },
+          {
+            "id": "filesystem.read.metadata",
+            "name": "메타데이터 읽기",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "수정 시간, 크기, 권한 같은 속성을 읽습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "필요한 파일 속성만 읽으세요."
+          }
+        ]
+      },
+      {
+        "label": "쓰기",
+        "permissions": [
+          {
+            "id": "filesystem.write.file_create",
+            "name": "파일 생성",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "프로젝트에 새 파일을 만들 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "허용 폴더 내부에서만 만들도록 제한하세요."
+          },
+          {
+            "id": "filesystem.write.file_modify",
+            "name": "파일 수정",
+            "category": "write",
+            "riskScore": 55,
+            "scoreImpact": 20,
+            "reason": "기존 파일을 바꿔 빌드나 실행 결과에 영향을 줄 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "수정 전후 diff를 보여주고 승인 후 저장하세요."
+          },
+          {
+            "id": "filesystem.write.file_move",
+            "name": "파일 이동",
+            "category": "write",
+            "riskScore": 45,
+            "scoreImpact": 15,
+            "reason": "경로가 바뀌어 참조가 깨질 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "이동 대상 경로가 허용 폴더 안인지 검사하세요."
+          },
+          {
+            "id": "filesystem.write.file_rename",
+            "name": "파일 이름 변경",
+            "category": "write",
+            "riskScore": 45,
+            "scoreImpact": 15,
+            "reason": "파일 이름 변경으로 import나 링크가 깨질 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "관련 참조 변경 목록을 함께 보여주세요."
+          },
+          {
+            "id": "filesystem.write.file_delete",
+            "name": "파일 삭제",
+            "category": "delete",
+            "riskScore": 70,
+            "scoreImpact": 30,
+            "reason": "파일을 잃거나 프로젝트가 실행되지 않을 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "삭제 전 백업 또는 휴지통 이동을 사용하세요."
+          },
+          {
+            "id": "filesystem.write.folder_create",
+            "name": "폴더 생성",
+            "category": "write",
+            "riskScore": 30,
+            "scoreImpact": 15,
+            "reason": "폴더 구조를 변경합니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "허용된 프로젝트 경로 내부에서만 생성하세요."
+          },
+          {
+            "id": "filesystem.write.folder_delete",
+            "name": "폴더 삭제",
+            "category": "delete",
+            "riskScore": 75,
+            "scoreImpact": 30,
+            "reason": "여러 파일이 한 번에 삭제될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "삭제 대상 목록과 용량을 먼저 보여주세요.",
+            "critical": true
+          }
+        ]
+      },
+      {
+        "label": "민감 권한",
+        "permissions": [
+          {
+            "id": "filesystem.sensitive.outside_project",
+            "name": "프로젝트 외부 폴더 접근",
+            "category": "read",
+            "riskScore": 65,
+            "scoreImpact": 30,
+            "reason": "프로젝트와 무관한 개인 파일을 볼 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "프로젝트 루트 내부만 접근하게 설정하세요."
+          },
+          {
+            "id": "filesystem.sensitive.home",
+            "name": "사용자 홈 폴더 접근",
+            "category": "read",
+            "riskScore": 75,
+            "scoreImpact": 35,
+            "reason": "다운로드, 문서, 인증 파일 등 개인 자료가 포함될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "작업 폴더만 allowlist로 등록하세요.",
+            "critical": true
+          },
+          {
+            "id": "filesystem.sensitive.system",
+            "name": "시스템 폴더 접근",
+            "category": "read",
+            "riskScore": 80,
+            "scoreImpact": 35,
+            "reason": "운영체제 파일을 읽거나 변경할 위험이 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "시스템 폴더는 MCP 접근 대상에서 제외하세요.",
+            "critical": true
+          },
+          {
+            "id": "filesystem.sensitive.hidden",
+            "name": "숨김 파일 접근",
+            "category": "read",
+            "riskScore": 55,
+            "scoreImpact": 25,
+            "reason": "숨김 파일에는 설정과 인증 관련 정보가 있을 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "숨김 파일은 기본 제외하고 필요할 때만 허용하세요."
+          },
+          {
+            "id": "filesystem.sensitive.env",
+            "name": ".env 파일 접근",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 50,
+            "reason": "환경변수 파일에는 API 키와 비밀값이 포함될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": ".env 원문 대신 필요한 변수 존재 여부만 확인하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "filesystem.sensitive.ssh_keys",
+            "name": "SSH 키 접근",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 50,
+            "reason": "SSH 키가 유출되면 서버나 Git 계정에 접근될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "SSH 키 경로는 항상 denylist로 차단하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "filesystem.sensitive.full_drive",
+            "name": "전체 드라이브 접근",
+            "category": "read",
+            "riskScore": 90,
+            "scoreImpact": 45,
+            "reason": "모든 파일에 접근할 수 있어 피해 범위가 매우 큽니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "특정 프로젝트 폴더만 허용하세요.",
+            "critical": true
+          },
+          {
+            "id": "filesystem.sensitive.executable_create",
+            "name": "실행 파일 생성",
+            "category": "execute",
+            "riskScore": 80,
+            "scoreImpact": 40,
+            "reason": "실행 가능한 파일은 악성 동작으로 이어질 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "스크립트 생성은 리뷰된 템플릿 안에서만 허용하세요.",
+            "critical": true
+          },
+          {
+            "id": "filesystem.sensitive.script_run",
+            "name": "스크립트 실행",
+            "category": "execute",
+            "riskScore": 90,
+            "scoreImpact": 40,
+            "reason": "임의 명령 실행으로 파일 변경, 네트워크 전송, 설치가 일어날 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "실행 대신 명령어를 보여주고 사용자가 직접 실행하게 하세요.",
+            "critical": true
+          }
+        ]
+      }
+    ]
+  },
+  "browser": {
+    "type": "browser",
+    "displayName": "Browser MCP",
+    "defaultName": "Browser MCP",
+    "description": "웹페이지를 열고 읽거나 브라우저에서 클릭, 입력, 업로드를 수행하는 MCP입니다.",
+    "principles": [
+      "허용 도메인 목록을 사용하세요.",
+      "폼 제출과 파일 업로드는 매번 승인하세요.",
+      "로그인, 결제, 계정 변경 작업은 기본 차단하세요.",
+      "쿠키와 인증정보 원문은 절대 기록하지 마세요."
+    ],
+    "permissionGroups": [
+      {
+        "label": "읽기",
+        "permissions": [
+          {
+            "id": "browser.read.open_page",
+            "name": "웹페이지 열기",
+            "category": "network",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "웹사이트에 접속하고 기본 페이지를 불러옵니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "공개 사이트 또는 허용 도메인만 열도록 제한하세요."
+          },
+          {
+            "id": "browser.read.page_text",
+            "name": "페이지 텍스트 읽기",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "페이지의 텍스트 정보를 읽습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "로그인 페이지나 개인정보 화면은 제외하세요."
+          },
+          {
+            "id": "browser.read.links",
+            "name": "링크 확인",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "페이지 내 링크 구조를 확인합니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "외부 링크 이동은 별도 승인으로 분리하세요."
+          },
+          {
+            "id": "browser.read.screenshot",
+            "name": "페이지 스크린샷",
+            "category": "read",
+            "riskScore": 25,
+            "scoreImpact": 10,
+            "reason": "화면에 보이는 개인정보나 토큰이 이미지에 포함될 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "스크린샷 전 민감정보 포함 여부를 확인하세요."
+          },
+          {
+            "id": "browser.read.public_search",
+            "name": "공개 정보 검색",
+            "category": "network",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "공개 웹 검색을 수행합니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "검색어에 비밀값이나 내부 정보를 넣지 마세요."
+          }
+        ]
+      },
+      {
+        "label": "상호작용",
+        "permissions": [
+          {
+            "id": "browser.interact.click",
+            "name": "링크 클릭",
+            "category": "network",
+            "riskScore": 30,
+            "scoreImpact": 10,
+            "reason": "다른 페이지로 이동하거나 버튼 동작을 일으킬 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "허용 도메인 내부 링크만 클릭하세요."
+          },
+          {
+            "id": "browser.interact.type",
+            "name": "입력창 작성",
+            "category": "write",
+            "riskScore": 40,
+            "scoreImpact": 15,
+            "reason": "입력값이 페이지에 저장되거나 전송될 수 있습니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "비밀번호와 토큰 입력은 차단하세요."
+          },
+          {
+            "id": "browser.interact.form_submit",
+            "name": "폼 제출",
+            "category": "network",
+            "riskScore": 60,
+            "scoreImpact": 20,
+            "reason": "외부 서비스로 데이터가 전송됩니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "제출 직전 전송될 필드 목록을 사용자에게 보여주세요."
+          },
+          {
+            "id": "browser.interact.download",
+            "name": "파일 다운로드",
+            "category": "network",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "로컬 환경에 파일이 저장됩니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "다운로드 경로와 파일명을 제한하세요."
+          },
+          {
+            "id": "browser.interact.upload",
+            "name": "파일 업로드",
+            "category": "network",
+            "riskScore": 65,
+            "scoreImpact": 25,
+            "reason": "로컬 파일이 외부 사이트로 전송될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "업로드할 파일명과 대상 도메인을 매번 확인하세요."
+          },
+          {
+            "id": "browser.interact.clipboard_read",
+            "name": "클립보드 읽기",
+            "category": "credential",
+            "riskScore": 65,
+            "scoreImpact": 25,
+            "reason": "클립보드에는 비밀번호나 토큰이 들어 있을 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "클립보드 원문 대신 사용자가 직접 붙여넣게 하세요."
+          },
+          {
+            "id": "browser.interact.clipboard_write",
+            "name": "클립보드 쓰기",
+            "category": "write",
+            "riskScore": 35,
+            "scoreImpact": 15,
+            "reason": "사용자의 클립보드 내용을 바꿉니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "복사할 내용을 미리 보여주세요."
+          }
+        ]
+      },
+      {
+        "label": "민감 권한",
+        "permissions": [
+          {
+            "id": "browser.sensitive.logged_in_session",
+            "name": "로그인된 브라우저 세션 사용",
+            "category": "credential",
+            "riskScore": 75,
+            "scoreImpact": 30,
+            "reason": "사용자의 로그인 상태로 작업이 실행될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "읽기 전용 세션 또는 별도 테스트 계정을 사용하세요.",
+            "critical": true
+          },
+          {
+            "id": "browser.sensitive.cookies",
+            "name": "쿠키 접근",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 50,
+            "reason": "쿠키는 로그인 상태를 증명하는 민감정보입니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "쿠키 원문 접근 없이 브라우저 권한만 사용하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "browser.sensitive.password_input",
+            "name": "비밀번호 입력",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 60,
+            "reason": "비밀번호가 노출되거나 잘못된 사이트에 입력될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "비밀번호 입력은 사용자가 직접 수행하게 하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "browser.sensitive.payment",
+            "name": "결제 페이지 조작",
+            "category": "write",
+            "riskScore": 95,
+            "scoreImpact": 60,
+            "reason": "금전 결제나 환불 같은 되돌리기 어려운 작업을 일으킬 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "결제 관련 동작은 MCP에서 완전히 차단하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "browser.sensitive.account_settings",
+            "name": "계정 설정 변경",
+            "category": "write",
+            "riskScore": 95,
+            "scoreImpact": 60,
+            "reason": "이메일, 보안 설정, 복구 정보가 바뀔 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "계정 설정 화면은 읽기와 쓰기 모두 차단하세요.",
+            "critical": true,
+            "forceCritical": true
+          },
+          {
+            "id": "browser.sensitive.email_send",
+            "name": "이메일 전송",
+            "category": "network",
+            "riskScore": 75,
+            "scoreImpact": 30,
+            "reason": "사용자 명의로 외부에 메시지가 전송될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "메일 본문과 수신자를 사용자가 직접 확인하게 하세요.",
+            "critical": true
+          },
+          {
+            "id": "browser.sensitive.post_create",
+            "name": "게시물 작성",
+            "category": "network",
+            "riskScore": 65,
+            "scoreImpact": 25,
+            "reason": "사용자 명의의 공개 콘텐츠가 생성될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "임시 저장까지만 허용하고 게시 버튼은 차단하세요."
+          },
+          {
+            "id": "browser.sensitive.local_file_upload",
+            "name": "외부 사이트에 로컬 파일 업로드",
+            "category": "network",
+            "riskScore": 85,
+            "scoreImpact": 45,
+            "reason": "로컬 파일이 의도하지 않은 외부 사이트로 전송될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "업로드 허용 도메인과 파일 확장자를 엄격히 제한하세요.",
+            "critical": true
+          },
+          {
+            "id": "browser.sensitive.all_domains",
+            "name": "모든 도메인 접근",
+            "category": "network",
+            "riskScore": 75,
+            "scoreImpact": 35,
+            "reason": "피싱 사이트나 의도하지 않은 외부 사이트에서도 동작할 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "허용 도메인 목록을 사용하세요.",
+            "critical": true
+          }
+        ]
+      }
+    ]
+  },
+  "custom": {
+    "type": "custom",
+    "displayName": "직접 입력",
+    "defaultName": "사용자 정의 MCP",
+    "description": "아직 템플릿이 없는 MCP를 간단한 권한 범주로 점검합니다.",
+    "principles": [
+      "처음 연결할 때는 읽기 전용과 제한된 범위로 시작하세요.",
+      "쓰기, 삭제, 실행, 인증정보 접근은 별도 승인을 두세요.",
+      "권한이 애매하면 더 위험한 쪽으로 판단하세요."
+    ],
+    "permissionGroups": [
+      {
+        "label": "일반 권한",
+        "permissions": [
+          {
+            "id": "custom.read.basic",
+            "name": "읽기 전용",
+            "category": "read",
+            "riskScore": 10,
+            "scoreImpact": 5,
+            "reason": "대상 정보를 읽지만 직접 변경하지 않습니다.",
+            "recommendedApproval": "NO_APPROVAL",
+            "saferAlternative": "읽을 수 있는 대상을 구체적으로 제한하세요."
+          },
+          {
+            "id": "custom.write.limited",
+            "name": "제한된 쓰기",
+            "category": "write",
+            "riskScore": 40,
+            "scoreImpact": 15,
+            "reason": "지정된 범위에서 내용을 만들거나 수정합니다.",
+            "recommendedApproval": "SESSION_APPROVAL",
+            "saferAlternative": "쓰기 범위를 프로젝트 또는 테스트 데이터로 제한하세요."
+          },
+          {
+            "id": "custom.delete",
+            "name": "삭제",
+            "category": "delete",
+            "riskScore": 70,
+            "scoreImpact": 30,
+            "reason": "데이터를 잃거나 복구가 어려울 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "삭제 대신 비활성화나 백업 후 삭제를 사용하세요."
+          },
+          {
+            "id": "custom.execute",
+            "name": "명령어 실행",
+            "category": "execute",
+            "riskScore": 90,
+            "scoreImpact": 40,
+            "reason": "임의 동작이 실행되어 시스템이나 외부 서비스에 영향을 줄 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "명령어를 실행하지 말고 사용자에게 보여준 뒤 직접 실행하게 하세요.",
+            "critical": true
+          },
+          {
+            "id": "custom.network.send",
+            "name": "외부 전송",
+            "category": "network",
+            "riskScore": 65,
+            "scoreImpact": 25,
+            "reason": "데이터가 외부 서비스로 전송될 수 있습니다.",
+            "recommendedApproval": "EACH_ACTION_APPROVAL",
+            "saferAlternative": "전송 대상과 필드 목록을 매번 확인하세요."
+          },
+          {
+            "id": "custom.credential.access",
+            "name": "인증정보 접근",
+            "category": "credential",
+            "riskScore": 95,
+            "scoreImpact": 50,
+            "reason": "토큰, 쿠키, 비밀번호 같은 비밀정보가 노출될 수 있습니다.",
+            "recommendedApproval": "BLOCK_BY_DEFAULT",
+            "saferAlternative": "인증정보 원문 접근은 차단하고 필요한 권한만 위임하세요.",
+            "critical": true,
+            "forceCritical": true
+          }
+        ]
+      }
+    ]
+  }
+}
