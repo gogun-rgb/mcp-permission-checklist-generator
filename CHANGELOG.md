@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 - 2026-06-27
+
+- Docker 단일 서비스 배포에서 외부 호스트 포트를 바꿔도 정적 JS/CSS asset이 CORS allowlist와 무관하게 제공되도록 수정했습니다.
+- `/api` 경로에만 CORS middleware를 적용하고, 허용되지 않은 API origin은 JSON 403으로 응답하도록 개선했습니다.
+- production 통합 테스트와 smoke test가 HTML에서 실제 JS/CSS asset 경로를 추출해 상태 코드와 MIME 타입을 검증하도록 보강했습니다.
+- Render 배포 설정에서 선택 사항인 `OPENAI_API_KEY`를 필수 환경변수처럼 요구하지 않도록 정리했습니다.
+- Docker 포트 매핑과 `ALLOWED_ORIGINS`의 API 전용 역할을 README와 배포 문서에 명확히 반영했습니다.
+
 ## 1.1.0 - 2026-06-27
 
 - 공용 `packages/shared` 패키지로 MCP 템플릿, 타입, 위험 모델 상수를 통합했습니다.
