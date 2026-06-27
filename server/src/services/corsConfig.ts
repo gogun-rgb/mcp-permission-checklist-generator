@@ -5,6 +5,15 @@ const defaultAllowedOrigins = [
   "http://127.0.0.1:3001"
 ];
 
+export class CorsOriginError extends Error {
+  readonly statusCode = 403;
+
+  constructor() {
+    super("CORS origin is not allowed");
+    this.name = "CorsOriginError";
+  }
+}
+
 export function parseAllowedOrigins(value: string | undefined): Set<string> {
   const origins = value
     ?.split(",")
@@ -29,7 +38,12 @@ export function addRenderExternalOrigin(
 
 export function isCorsOriginAllowed(
   origin: string | undefined,
-  allowedOrigins: ReadonlySet<string>
+  allowedOrigins: ReadonlySet<string>,
+  requestOrigin?: string
 ): boolean {
-  return !origin || allowedOrigins.has(origin);
+  return !origin || origin === requestOrigin || allowedOrigins.has(origin);
+}
+
+export function isCorsOriginError(error: unknown): error is CorsOriginError {
+  return error instanceof CorsOriginError;
 }

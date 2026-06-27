@@ -1,12 +1,15 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import type { IncomingHttpHeaders } from "node:http";
 import path from "node:path";
 import { checklistRouter } from "./routes/checklists.js";
 import { getRuntimePaths } from "./config/paths.js";
 import {
   addRenderExternalOrigin,
+  CorsOriginError,
   isCorsOriginAllowed,
+  isCorsOriginError,
   parseAllowedOrigins
 } from "./services/corsConfig.js";
 
@@ -29,6 +32,20 @@ export function createApp(options: CreateAppOptions = {}) {
     );
   const trustProxy = options.trustProxy ?? process.env.TRUST_PROXY === "true";
   const clientDistPath = options.clientDistPath ?? getRuntimePaths().clientDistPath;
+  const apiCors = cors((request, optionsCallback) => {
+    const requestOrigin = getRequestOrigin(request);
+
+    optionsCallback(null, {
+      origin(origin, originCallback) {
+        if (isCorsOriginAllowed(origin, allowedOrigins, requestOrigin)) {
+          originCallback(null, true);
+          return;
+        }
+
+        originCallback(new CorsOriginError());
+      }
+    });
+  });
 
   app.disable("x-powered-by");
   if (trustProxy) {
@@ -40,24 +57,13 @@ export function createApp(options: CreateAppOptions = {}) {
       crossOriginEmbedderPolicy: false
     })
   );
-  app.use(
-    cors({
-      origin(origin, callback) {
-        if (isCorsOriginAllowed(origin, allowedOrigins)) {
-          callback(null, true);
-          return;
-        }
-
-        callback(new Error("CORS origin is not allowed"));
-      }
-    })
-  );
-  app.use(express.json({ limit: "32kb" }));
 
   app.get("/health", (_request, response) => {
     response.json({ ok: true });
   });
 
+  app.use("/api", apiCors);
+  app.use("/api", express.json({ limit: "32kb" }));
   app.use("/api/checklists", checklistRouter);
 
   app.use("/api", (_request, response) => {
@@ -83,6 +89,11 @@ export function createApp(options: CreateAppOptions = {}) {
       next: express.NextFunction
     ) => {
       void next;
+      if (isCorsOriginError(error)) {
+        response.status(403).json({ error: "허용되지 않은 요청 출처입니다." });
+        return;
+      }
+
       const message =
         isProduction ? "서버에서 요청을 처리하지 못했습니다." : error.message;
 
@@ -91,4 +102,30 @@ export function createApp(options: CreateAppOptions = {}) {
   );
 
   return app;
+}
+
+function getRequestOrigin(request: {
+  headers: IncomingHttpHeaders;
+  protocol?: string;
+}): string | undefined {
+  const host = getHeaderValue(request.headers.host);
+
+  if (!host) {
+    return undefined;
+  }
+
+  const forwardedProtocol = getHeaderValue(request.headers["x-forwarded-proto"])
+    ?.split(",")[0]
+    ?.trim();
+  const protocol = request.protocol || forwardedProtocol || "http";
+
+  return `${protocol}://${host}`;
+}
+
+function getHeaderValue(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) {
+    return value[0];
+  }
+
+  return value;
 }
