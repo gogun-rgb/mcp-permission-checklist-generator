@@ -2,6 +2,13 @@
 
 이 프로젝트는 단일 Docker Web Service 배포를 기준으로 합니다. Express 서버가 React 정적 파일과 API를 함께 제공합니다.
 
+## 현재 배포 주소
+
+- Web: https://mcp-permission-checklist-generator.onrender.com
+- Health: https://mcp-permission-checklist-generator.onrender.com/health
+
+현재 공개 배포는 OpenAI API 키 없이 동작하며, 규칙 기반 분석 기능만 사용합니다. 따라서 OpenAI API 비용은 발생하지 않습니다.
+
 ## Render Web UI 배포
 
 저장소 루트의 `render.yaml`은 Render Blueprint 배포용 설정입니다.
@@ -63,10 +70,10 @@ docker run --rm -p 3002:3001 mcp-permission-checklist-generator
 
 ## 배포 후 smoke test
 
-실제 배포 URL이 생기면 다음 명령으로 확인합니다.
+현재 공개 배포 URL은 다음 명령으로 확인합니다.
 
 ```bash
-npm run smoke -- https://your-render-url.onrender.com
+npm run smoke -- https://mcp-permission-checklist-generator.onrender.com
 ```
 
 검증 항목:
