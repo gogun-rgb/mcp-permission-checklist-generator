@@ -324,6 +324,13 @@ describe("rule-based MCP permission risk engine", () => {
 
     expect(isCorsOriginAllowed("https://app.example.com", allowedOrigins)).toBe(true);
     expect(isCorsOriginAllowed(undefined, allowedOrigins)).toBe(true);
+    expect(
+      isCorsOriginAllowed(
+        "http://127.0.0.1:3002",
+        allowedOrigins,
+        "http://127.0.0.1:3002"
+      )
+    ).toBe(true);
     expect(isCorsOriginAllowed("https://evil.example.com", allowedOrigins)).toBe(false);
   });
 
@@ -513,47 +520,112 @@ describe("rule-based MCP permission risk engine", () => {
 });
 
 describe("production Express app", () => {
-  it("returns health JSON, serves static HTML, keeps API JSON 404, and handles checklist API", async () => {
+  it("returns health JSON, serves static HTML and assets, keeps API JSON 404, and handles checklist API", async () => {
     const { clientDistPath, cleanup } = createStaticFixture();
 
-    await withTestServer(clientDistPath, async (baseUrl) => {
-      const healthResponse = await fetch(`${baseUrl}/health`);
-      expect(healthResponse.status).toBe(200);
-      expect(healthResponse.headers.get("content-type")).toContain("application/json");
-      expect(await healthResponse.json()).toEqual({ ok: true });
+    try {
+      await withTestServer(clientDistPath, async (baseUrl) => {
+        const sameOrigin = new URL(baseUrl).origin;
+        const allowedExternalOrigin = "http://localhost:3002";
+        const blockedOrigin = "https://evil.example";
 
-      const rootResponse = await fetch(`${baseUrl}/`);
-      expect(rootResponse.status).toBe(200);
-      expect(rootResponse.headers.get("content-type")).toContain("text/html");
-      expect(await rootResponse.text()).toContain("MCP test shell");
+        const healthResponse = await fetch(`${baseUrl}/health`, {
+          headers: { Origin: blockedOrigin }
+        });
+        expect(healthResponse.status).toBe(200);
+        expect(healthResponse.headers.get("content-type")).toContain("application/json");
+        expect(await healthResponse.json()).toEqual({ ok: true });
 
-      const spaResponse = await fetch(`${baseUrl}/settings/security`);
-      expect(spaResponse.status).toBe(200);
-      expect(spaResponse.headers.get("content-type")).toContain("text/html");
-      expect(await spaResponse.text()).toContain("MCP test shell");
+        const rootResponse = await fetch(`${baseUrl}/`);
+        expect(rootResponse.status).toBe(200);
+        expect(rootResponse.headers.get("content-type")).toContain("text/html");
+        const rootHtml = await rootResponse.text();
+        expect(rootHtml).toContain("MCP test shell");
 
-      const apiMissingResponse = await fetch(`${baseUrl}/api/missing`);
-      expect(apiMissingResponse.status).toBe(404);
-      expect(apiMissingResponse.headers.get("content-type")).toContain("application/json");
-      expect(await apiMissingResponse.json()).toEqual({
-        error: "요청한 API를 찾을 수 없습니다."
+        const scriptSources = extractScriptSources(rootHtml);
+        const stylesheetHrefs = extractStylesheetHrefs(rootHtml);
+        expect(scriptSources).toEqual(["/assets/app.js"]);
+        expect(stylesheetHrefs).toEqual(["/assets/app.css"]);
+
+        for (const scriptSource of scriptSources) {
+          const scriptResponse = await fetch(new URL(scriptSource, baseUrl), {
+            headers: { Origin: allowedExternalOrigin }
+          });
+          const scriptBody = await scriptResponse.text();
+
+          expect(scriptResponse.status).toBe(200);
+          expect(scriptResponse.headers.get("content-type")).toMatch(/javascript/);
+          expect(scriptBody).toContain("console.log");
+          expect(scriptBody.trim().startsWith("{")).toBe(false);
+          expect(scriptBody).not.toContain("MCP test shell");
+        }
+
+        for (const stylesheetHref of stylesheetHrefs) {
+          const stylesheetResponse = await fetch(new URL(stylesheetHref, baseUrl), {
+            headers: { Origin: allowedExternalOrigin }
+          });
+          const stylesheetBody = await stylesheetResponse.text();
+
+          expect(stylesheetResponse.status).toBe(200);
+          expect(stylesheetResponse.headers.get("content-type")).toContain("text/css");
+          expect(stylesheetBody).toContain("color: #111827");
+          expect(stylesheetBody.trim().startsWith("{")).toBe(false);
+          expect(stylesheetBody).not.toContain("MCP test shell");
+        }
+
+        const spaResponse = await fetch(`${baseUrl}/settings/security`);
+        expect(spaResponse.status).toBe(200);
+        expect(spaResponse.headers.get("content-type")).toContain("text/html");
+        expect(await spaResponse.text()).toContain("MCP test shell");
+
+        const apiMissingResponse = await fetch(`${baseUrl}/api/missing`, {
+          headers: { Origin: allowedExternalOrigin }
+        });
+        expect(apiMissingResponse.status).toBe(404);
+        expect(apiMissingResponse.headers.get("content-type")).toContain("application/json");
+        expect(await apiMissingResponse.json()).toEqual({
+          error: "요청한 API를 찾을 수 없습니다."
+        });
+
+        const sameOriginApiMissingResponse = await fetch(`${baseUrl}/api/missing`, {
+          headers: { Origin: sameOrigin }
+        });
+        expect(sameOriginApiMissingResponse.status).toBe(404);
+        expect(sameOriginApiMissingResponse.headers.get("content-type")).toContain(
+          "application/json"
+        );
+        expect(await sameOriginApiMissingResponse.json()).toEqual({
+          error: "요청한 API를 찾을 수 없습니다."
+        });
+
+        const blockedApiResponse = await fetch(`${baseUrl}/api/missing`, {
+          headers: { Origin: blockedOrigin }
+        });
+        expect(blockedApiResponse.status).toBe(403);
+        expect(blockedApiResponse.headers.get("content-type")).toContain("application/json");
+        expect(await blockedApiResponse.json()).toEqual({
+          error: "허용되지 않은 요청 출처입니다."
+        });
+
+        const checklistResponse = await fetch(`${baseUrl}/api/checklists/generate`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Origin: sameOrigin
+          },
+          body: JSON.stringify(
+            makeRequest("github", ["github.read.repo_info"], "specific_repository")
+          )
+        });
+        const checklist = await checklistResponse.json();
+
+        expect(checklistResponse.status).toBe(200);
+        expect(checklist.analysisMode).toBe("RULE_ONLY");
+        expect(checklist.riskModelVersion).toBe("1.0.0");
       });
-
-      const checklistResponse = await fetch(`${baseUrl}/api/checklists/generate`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify(makeRequest("github", ["github.read.repo_info"], "specific_repository"))
-      });
-      const checklist = await checklistResponse.json();
-
-      expect(checklistResponse.status).toBe(200);
-      expect(checklist.analysisMode).toBe("RULE_ONLY");
-      expect(checklist.riskModelVersion).toBe("1.0.0");
-    });
-
-    cleanup();
+    } finally {
+      cleanup();
+    }
   });
 });
 
@@ -584,10 +656,26 @@ function createStaticFixture() {
   fs.mkdirSync(path.join(clientDistPath, "assets"));
   fs.writeFileSync(
     path.join(clientDistPath, "index.html"),
-    "<!doctype html><html><body><div id=\"root\">MCP test shell</div></body></html>",
+    [
+      "<!doctype html>",
+      "<html>",
+      "<head>",
+      "<link rel=\"stylesheet\" href=\"/assets/app.css\">",
+      "</head>",
+      "<body>",
+      "<div id=\"root\">MCP test shell</div>",
+      "<script type=\"module\" src=\"/assets/app.js\"></script>",
+      "</body>",
+      "</html>"
+    ].join(""),
     "utf8"
   );
   fs.writeFileSync(path.join(clientDistPath, "assets", "app.js"), "console.log('ok');", "utf8");
+  fs.writeFileSync(
+    path.join(clientDistPath, "assets", "app.css"),
+    "body { color: #111827; }",
+    "utf8"
+  );
 
   return {
     clientDistPath,
@@ -604,7 +692,7 @@ async function withTestServer(
   const app = createApp({
     environment: "production",
     clientDistPath,
-    allowedOrigins: new Set(["http://127.0.0.1"])
+    allowedOrigins: new Set(["http://127.0.0.1", "http://localhost:3002"])
   });
   const server: Server = app.listen(0);
 
@@ -627,4 +715,18 @@ async function withTestServer(
       });
     });
   }
+}
+
+function extractScriptSources(html: string): string[] {
+  return [...html.matchAll(/<script\b[^>]*\bsrc=["']([^"']+)["'][^>]*>/gi)].map(
+    (match) => match[1]
+  );
+}
+
+function extractStylesheetHrefs(html: string): string[] {
+  return [
+    ...html.matchAll(
+      /<link\b(?=[^>]*\brel=["']stylesheet["'])(?=[^>]*\bhref=["']([^"']+)["'])[^>]*>/gi
+    )
+  ].map((match) => match[1]);
 }
