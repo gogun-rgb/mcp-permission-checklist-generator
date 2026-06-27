@@ -4,18 +4,20 @@ import express from "express";
 import helmet from "helmet";
 import path from "node:path";
 import { checklistRouter } from "./routes/checklists";
+import { isCorsOriginAllowed, parseAllowedOrigins } from "./services/corsConfig";
 
 dotenv.config({ path: path.resolve(process.cwd(), ".env") });
 dotenv.config({ path: path.resolve(process.cwd(), "server", ".env") });
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);
-const allowedOrigins = new Set([
-  "http://localhost:5173",
-  "http://127.0.0.1:5173"
-]);
+const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
+const trustProxy = process.env.TRUST_PROXY === "true";
 
 app.disable("x-powered-by");
+if (trustProxy) {
+  app.set("trust proxy", 1);
+}
 app.use(
   helmet({
     crossOriginEmbedderPolicy: false
@@ -24,7 +26,7 @@ app.use(
 app.use(
   cors({
     origin(origin, callback) {
-      if (!origin || allowedOrigins.has(origin)) {
+      if (isCorsOriginAllowed(origin, allowedOrigins)) {
         callback(null, true);
         return;
       }
