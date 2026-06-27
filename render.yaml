@@ -15,5 +15,3 @@ services:
         value: "true"
       - key: CHECKLIST_RATE_LIMIT_PER_MINUTE
         value: "10"
-      - key: OPENAI_API_KEY
-        sync: false
