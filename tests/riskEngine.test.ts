@@ -1,12 +1,20 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
+import type { Server } from "node:http";
 import { buildApiUrl } from "../client/src/utils/api";
 import { checklistToMarkdown } from "../client/src/utils/formatters";
+import { createApp } from "../server/src/app";
 import { getEnvironmentPaths } from "../server/src/config/env";
+import { getRuntimePaths } from "../server/src/config/paths";
 import { generateChecklist } from "../server/src/services/checklistService";
-import { isCorsOriginAllowed, parseAllowedOrigins } from "../server/src/services/corsConfig";
+import {
+  addRenderExternalOrigin,
+  isCorsOriginAllowed,
+  parseAllowedOrigins
+} from "../server/src/services/corsConfig";
 import {
   buildOpenAiPayload,
   mergeEnhancement,
@@ -319,6 +327,22 @@ describe("rule-based MCP permission risk engine", () => {
     expect(isCorsOriginAllowed("https://evil.example.com", allowedOrigins)).toBe(false);
   });
 
+  it("allows single-service local and Render origins without exposing secrets", () => {
+    const allowedOrigins = addRenderExternalOrigin(
+      parseAllowedOrigins(undefined),
+      "mcp-permission-checklist-generator.onrender.com"
+    );
+
+    expect(isCorsOriginAllowed("http://localhost:3001", allowedOrigins)).toBe(true);
+    expect(isCorsOriginAllowed("http://127.0.0.1:3001", allowedOrigins)).toBe(true);
+    expect(
+      isCorsOriginAllowed(
+        "https://mcp-permission-checklist-generator.onrender.com",
+        allowedOrigins
+      )
+    ).toBe(true);
+  });
+
   it("builds API URLs from empty or absolute base URLs", () => {
     expect(buildApiUrl("", "/api/checklists/generate")).toBe("/api/checklists/generate");
     expect(buildApiUrl(undefined, "api/checklists/generate")).toBe("/api/checklists/generate");
@@ -342,6 +366,20 @@ describe("rule-based MCP permission risk engine", () => {
     expect(getEnvironmentPaths(distModuleUrl).rootEnvPath).toBe(
       path.join(repositoryRoot, ".env")
     );
+  });
+
+  it("calculates client dist path from src and dist module URLs", () => {
+    const repositoryRoot = process.cwd();
+    const sourceModuleUrl = pathToFileURL(
+      path.join(repositoryRoot, "server", "src", "config", "paths.ts")
+    ).href;
+    const distModuleUrl = pathToFileURL(
+      path.join(repositoryRoot, "server", "dist", "config", "paths.js")
+    ).href;
+    const expectedClientDist = path.join(repositoryRoot, "client", "dist");
+
+    expect(getRuntimePaths(sourceModuleUrl).clientDistPath).toBe(expectedClientDist);
+    expect(getRuntimePaths(distModuleUrl).clientDistPath).toBe(expectedClientDist);
   });
 
   it("does not pass server-only OpenAI keys through client config code", () => {
@@ -474,6 +512,51 @@ describe("rule-based MCP permission risk engine", () => {
   });
 });
 
+describe("production Express app", () => {
+  it("returns health JSON, serves static HTML, keeps API JSON 404, and handles checklist API", async () => {
+    const { clientDistPath, cleanup } = createStaticFixture();
+
+    await withTestServer(clientDistPath, async (baseUrl) => {
+      const healthResponse = await fetch(`${baseUrl}/health`);
+      expect(healthResponse.status).toBe(200);
+      expect(healthResponse.headers.get("content-type")).toContain("application/json");
+      expect(await healthResponse.json()).toEqual({ ok: true });
+
+      const rootResponse = await fetch(`${baseUrl}/`);
+      expect(rootResponse.status).toBe(200);
+      expect(rootResponse.headers.get("content-type")).toContain("text/html");
+      expect(await rootResponse.text()).toContain("MCP test shell");
+
+      const spaResponse = await fetch(`${baseUrl}/settings/security`);
+      expect(spaResponse.status).toBe(200);
+      expect(spaResponse.headers.get("content-type")).toContain("text/html");
+      expect(await spaResponse.text()).toContain("MCP test shell");
+
+      const apiMissingResponse = await fetch(`${baseUrl}/api/missing`);
+      expect(apiMissingResponse.status).toBe(404);
+      expect(apiMissingResponse.headers.get("content-type")).toContain("application/json");
+      expect(await apiMissingResponse.json()).toEqual({
+        error: "요청한 API를 찾을 수 없습니다."
+      });
+
+      const checklistResponse = await fetch(`${baseUrl}/api/checklists/generate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify(makeRequest("github", ["github.read.repo_info"], "specific_repository"))
+      });
+      const checklist = await checklistResponse.json();
+
+      expect(checklistResponse.status).toBe(200);
+      expect(checklist.analysisMode).toBe("RULE_ONLY");
+      expect(checklist.riskModelVersion).toBe("1.0.0");
+    });
+
+    cleanup();
+  });
+});
+
 function createMockResponse() {
   const response = {
     headers: new Map<string, string>(),
@@ -494,4 +577,54 @@ function createMockResponse() {
   };
 
   return response;
+}
+
+function createStaticFixture() {
+  const clientDistPath = fs.mkdtempSync(path.join(os.tmpdir(), "mcp-client-dist-"));
+  fs.mkdirSync(path.join(clientDistPath, "assets"));
+  fs.writeFileSync(
+    path.join(clientDistPath, "index.html"),
+    "<!doctype html><html><body><div id=\"root\">MCP test shell</div></body></html>",
+    "utf8"
+  );
+  fs.writeFileSync(path.join(clientDistPath, "assets", "app.js"), "console.log('ok');", "utf8");
+
+  return {
+    clientDistPath,
+    cleanup() {
+      fs.rmSync(clientDistPath, { recursive: true, force: true });
+    }
+  };
+}
+
+async function withTestServer(
+  clientDistPath: string,
+  run: (baseUrl: string) => Promise<void>
+): Promise<void> {
+  const app = createApp({
+    environment: "production",
+    clientDistPath,
+    allowedOrigins: new Set(["http://127.0.0.1"])
+  });
+  const server: Server = app.listen(0);
+
+  try {
+    const address = server.address();
+    if (!address || typeof address === "string") {
+      throw new Error("Unable to start test server");
+    }
+
+    await run(`http://127.0.0.1:${address.port}`);
+  } finally {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
 }
