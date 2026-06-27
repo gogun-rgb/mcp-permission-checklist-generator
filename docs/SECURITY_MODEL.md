@@ -6,6 +6,20 @@
 
 OpenAI API 키는 서버 환경변수에서만 읽습니다. 클라이언트 번들에는 API 키를 넣지 않으며, `VITE_API_BASE_URL`은 API 서버 주소만 지정합니다.
 
+공식 환경변수 파일은 저장소 루트의 `.env`입니다.
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+서버는 루트 `.env`를 먼저 읽고, `server/.env`는 하위 호환 fallback으로만 읽습니다. 같은 키가 두 파일에 있으면 루트 `.env`가 우선합니다. `OPENAI_API_KEY`, `OPENAI_MODEL`, `PORT`, `ALLOWED_ORIGINS`, `CHECKLIST_RATE_LIMIT_PER_MINUTE`, `TRUST_PROXY`는 서버 전용입니다. `VITE_API_BASE_URL`은 Vite가 빌드 시 클라이언트에 포함하는 공개 API 주소입니다. `VITE_` 접두사가 붙은 값은 브라우저에 노출될 수 있으므로 비밀값을 넣으면 안 됩니다.
+
 ## 입력 검증
 
 서버는 다음 항목을 검증합니다.
@@ -55,9 +69,11 @@ AI 응답은 JSON으로 요청하지만, 서버는 응답을 신뢰하지 않습
 
 기본 정책은 생성 API 기준 IP당 1분 10회입니다. `CHECKLIST_RATE_LIMIT_PER_MINUTE`로 조정할 수 있습니다. 제한을 초과하면 HTTP 429와 한국어 오류 메시지를 반환합니다.
 
+rate limit 상태는 단일 Node.js 프로세스의 메모리 `Map`에 저장됩니다. 요청 시점에 만료된 bucket을 lazy cleanup하고, 기본 최대 bucket 수는 10,000개로 제한해 서로 다른 IP가 한 번씩 요청해도 Map이 무한히 증가하지 않게 합니다. 여러 서버 인스턴스에서는 제한 상태가 공유되지 않으므로 실제 대규모 배포에서는 Redis 같은 외부 store가 필요합니다.
+
 ## 알려진 한계
 
 - 휴리스틱 모델이므로 조직의 실제 보안 정책을 대체하지 않습니다.
 - MCP 서버의 실제 권한 manifest를 자동으로 검증하지 않습니다.
-- 메모리 기반 rate limit은 단일 서버 프로세스 기준입니다. 다중 인스턴스 배포에서는 Redis 같은 외부 저장소가 필요합니다.
+- 메모리 기반 rate limit은 단일 서버 프로세스 기준입니다. 만료 bucket cleanup과 최대 bucket 수 제한은 있지만, 다중 인스턴스 배포에서는 Redis 같은 외부 저장소가 필요합니다.
 - 마스킹 규칙은 알려진 패턴 중심이며 모든 비밀값을 보장하지 않습니다.

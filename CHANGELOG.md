@@ -7,6 +7,10 @@
 - OpenAI 보강이 실제 설명 필드에 반영된 경우에만 `RULE_WITH_AI_EXPLANATION`을 표시하도록 했습니다.
 - 배포용 `ALLOWED_ORIGINS`, `VITE_API_BASE_URL`, `TRUST_PROXY` 설정을 추가했습니다.
 - 생성 API에 IP 기준 메모리 rate limit을 추가했습니다.
+- npm workspace 실행 위치와 관계없이 루트 `.env`를 일관되게 로드하도록 수정했습니다.
+- Vite가 루트 `.env`의 `VITE_API_BASE_URL`을 읽도록 설정했습니다.
+- rate limiter의 만료 bucket cleanup과 최대 bucket 수 제한을 추가했습니다.
+- 환경변수 경로, API URL 생성, rate limiter 메모리 관리 테스트를 추가했습니다.
 - GitHub Actions CI를 추가했습니다.
 - 위험 모델, 보안 모델, 아키텍처, 스크린샷 가이드를 문서화했습니다.
 - 보안 및 신뢰성 테스트를 보강했습니다.

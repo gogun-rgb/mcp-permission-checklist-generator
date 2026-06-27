@@ -87,19 +87,31 @@ npm.cmd run dev
 
 ## 환경변수
 
-`.env.example`을 참고해 루트 `.env` 또는 `server/.env`를 설정할 수 있습니다.
+루트 `.env` 하나를 기본 source of truth로 사용합니다.
+
+```bash
+cp .env.example .env
+```
+
+Windows PowerShell에서는 다음 명령을 사용할 수 있습니다.
+
+```powershell
+Copy-Item .env.example .env
+```
+
+서버는 실행 위치와 관계없이 저장소 루트의 `.env`를 먼저 읽습니다. `server/.env`는 기존 사용자 호환을 위한 fallback이며, 두 파일에 같은 키가 있으면 루트 `.env` 값이 우선합니다.
 
 | 이름 | 설명 | 기본값 |
 | --- | --- | --- |
-| `OPENAI_API_KEY` | 선택적 OpenAI API 키. 서버에서만 사용 | 없음 |
-| `OPENAI_MODEL` | 설명 보강에 사용할 모델 | `gpt-4.1-mini` |
-| `PORT` | Express 서버 포트 | `3001` |
-| `ALLOWED_ORIGINS` | 쉼표로 구분한 CORS 허용 origin | `http://localhost:5173,http://127.0.0.1:5173` |
-| `CHECKLIST_RATE_LIMIT_PER_MINUTE` | IP당 1분 생성 API 허용 횟수 | `10` |
-| `TRUST_PROXY` | 프록시 뒤에서 Express `trust proxy` 활성화 여부 | `false` |
-| `VITE_API_BASE_URL` | 배포 시 클라이언트가 호출할 API base URL | 빈 값이면 Vite proxy 사용 |
+| `OPENAI_API_KEY` | 서버 전용. 선택적 OpenAI API 키 | 없음 |
+| `OPENAI_MODEL` | 서버 전용. 설명 보강에 사용할 모델 | `gpt-4.1-mini` |
+| `PORT` | 서버 전용. Express 서버 포트 | `3001` |
+| `ALLOWED_ORIGINS` | 서버 전용. 쉼표로 구분한 CORS 허용 origin | `http://localhost:5173,http://127.0.0.1:5173` |
+| `CHECKLIST_RATE_LIMIT_PER_MINUTE` | 서버 전용. IP당 1분 생성 API 허용 횟수 | `10` |
+| `TRUST_PROXY` | 서버 전용. 프록시 뒤에서 Express `trust proxy` 활성화 여부 | `false` |
+| `VITE_API_BASE_URL` | Vite가 빌드 시 클라이언트에 포함하는 공개 API 주소 | 빈 값이면 Vite proxy 사용 |
 
-API 키는 절대 프론트엔드 환경변수로 이동하지 마세요. 빈 origin은 같은 origin 요청, 서버 간 호출, curl 같은 비브라우저 요청을 위해 허용됩니다.
+`VITE_` 접두사가 붙은 값은 브라우저 번들에 포함될 수 있으므로 API 키, 토큰, 쿠키, 비밀번호 같은 비밀값을 넣으면 안 됩니다. API 키는 절대 프론트엔드 환경변수로 이동하지 마세요. 빈 origin은 같은 origin 요청, 서버 간 호출, curl 같은 비브라우저 요청을 위해 허용됩니다.
 
 ## 보안 설계
 
@@ -109,6 +121,7 @@ API 키는 절대 프론트엔드 환경변수로 이동하지 마세요. 빈 or
 - `Bearer ...`, `sessionid=...`, `github_pat_...`, `password is ...` 같은 민감정보 패턴은 마스킹하거나 거절합니다.
 - AI 응답은 허용된 설명 필드만 반영합니다.
 - Express는 Helmet, CORS allowlist, JSON 요청 크기 제한, rate limit을 적용합니다.
+- Rate limit은 단일 프로세스 메모리 기반이며 만료 bucket을 lazy cleanup하고 최대 bucket 수를 제한합니다.
 
 자세한 내용은 [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)를 참고하세요.
 
@@ -137,7 +150,7 @@ npm run build
 
 - 실제 MCP 서버와 연결하지 않고 권한 점검표만 생성합니다.
 - 실제 조직 정책, 저장소 중요도, 내부 데이터 민감도는 자동으로 알 수 없습니다.
-- 메모리 기반 rate limit은 단일 서버 프로세스 기준입니다.
+- 메모리 기반 rate limit은 단일 서버 프로세스 기준입니다. 여러 서버 인스턴스에서는 제한 상태가 공유되지 않으며, 대규모 배포에는 Redis 기반 store가 필요합니다.
 - 민감정보 마스킹은 알려진 패턴 중심이며 모든 비밀값을 보장하지 않습니다.
 - 실제 운영 도입 전에는 조직 보안정책과 사람의 검토가 필요합니다.
 
