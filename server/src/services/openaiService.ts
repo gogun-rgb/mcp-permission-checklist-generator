@@ -4,7 +4,7 @@ import type {
   ChecklistRequest,
   ChecklistResult
 } from "@mcp-permission-checklist-generator/shared";
-import { redactSensitiveText } from "./redaction";
+import { redactSensitiveText } from "./redaction.js";
 
 const defaultModel = "gpt-4.1-mini";
 

@@ -10,6 +10,8 @@ export interface RateLimitOptions {
   maxRequests: number | (() => number);
   now?: () => number;
   keyPrefix?: string;
+  cleanupIntervalMs?: number;
+  maxBuckets?: number;
 }
 
 export interface RateLimitDecision {
@@ -22,11 +24,20 @@ export interface RateLimitDecision {
 export function createRateLimitTracker(options: RateLimitOptions) {
   const buckets = new Map<string, RateLimitBucket>();
   const now = options.now ?? Date.now;
+  const cleanupIntervalMs = readPositiveInteger(
+    String(options.cleanupIntervalMs ?? ""),
+    60_000
+  );
+  const maxBuckets = readPositiveInteger(String(options.maxBuckets ?? ""), 10_000);
+  let lastCleanupAt = 0;
 
   return {
     check(key: string): RateLimitDecision {
       const currentTime = now();
       const maxRequests = resolveMaxRequests(options.maxRequests);
+      runLazyCleanup(currentTime);
+      ensureCapacityFor(key, currentTime);
+
       const bucket = buckets.get(key);
 
       if (!bucket || bucket.resetAt <= currentTime) {
@@ -59,10 +70,65 @@ export function createRateLimitTracker(options: RateLimitOptions) {
         resetAt: bucket.resetAt
       };
     },
+    pruneExpired(currentTime: number = now()): number {
+      return pruneExpiredBuckets(currentTime);
+    },
+    size(): number {
+      return buckets.size;
+    },
     clear() {
       buckets.clear();
     }
   };
+
+  function runLazyCleanup(currentTime: number): void {
+    if (
+      currentTime - lastCleanupAt >= cleanupIntervalMs ||
+      buckets.size > maxBuckets
+    ) {
+      pruneExpiredBuckets(currentTime);
+      lastCleanupAt = currentTime;
+    }
+  }
+
+  function ensureCapacityFor(key: string, currentTime: number): void {
+    if (buckets.has(key) || buckets.size < maxBuckets) {
+      return;
+    }
+
+    pruneExpiredBuckets(currentTime);
+
+    if (buckets.size >= maxBuckets) {
+      pruneOldestBuckets(maxBuckets - 1);
+    }
+  }
+
+  function pruneExpiredBuckets(currentTime: number): number {
+    let deleted = 0;
+
+    for (const [key, bucket] of buckets.entries()) {
+      if (bucket.resetAt <= currentTime) {
+        buckets.delete(key);
+        deleted += 1;
+      }
+    }
+
+    return deleted;
+  }
+
+  function pruneOldestBuckets(targetSize: number): void {
+    const entries = Array.from(buckets.entries()).sort(
+      (left, right) => left[1].resetAt - right[1].resetAt
+    );
+
+    for (const [key] of entries) {
+      if (buckets.size <= targetSize) {
+        break;
+      }
+
+      buckets.delete(key);
+    }
+  }
 }
 
 export function createInMemoryRateLimiter(options: RateLimitOptions): RequestHandler {

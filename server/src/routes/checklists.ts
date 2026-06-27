@@ -1,10 +1,10 @@
 import { Router } from "express";
-import { generateChecklist } from "../services/checklistService";
+import { generateChecklist } from "../services/checklistService.js";
 import {
   createInMemoryRateLimiter,
   readPositiveInteger
-} from "../services/rateLimit";
-import { validateChecklistRequest } from "../services/validation";
+} from "../services/rateLimit.js";
+import { validateChecklistRequest } from "../services/validation.js";
 
 export const checklistRouter = Router();
 const generateRateLimiter = createInMemoryRateLimiter({

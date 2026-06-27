@@ -1,5 +1,5 @@
-import { enhanceWithOpenAI } from "./openaiService";
-import { createRuleBasedChecklist } from "./riskEngine";
+import { enhanceWithOpenAI } from "./openaiService.js";
+import { createRuleBasedChecklist } from "./riskEngine.js";
 import type {
   ChecklistRequest,
   ChecklistResult

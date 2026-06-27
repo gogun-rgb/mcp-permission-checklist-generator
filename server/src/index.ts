@@ -1,13 +1,11 @@
 import cors from "cors";
-import dotenv from "dotenv";
 import express from "express";
 import helmet from "helmet";
-import path from "node:path";
-import { checklistRouter } from "./routes/checklists";
-import { isCorsOriginAllowed, parseAllowedOrigins } from "./services/corsConfig";
+import { loadEnvironment } from "./config/env.js";
+import { checklistRouter } from "./routes/checklists.js";
+import { isCorsOriginAllowed, parseAllowedOrigins } from "./services/corsConfig.js";
 
-dotenv.config({ path: path.resolve(process.cwd(), ".env") });
-dotenv.config({ path: path.resolve(process.cwd(), "server", ".env") });
+loadEnvironment();
 
 const app = express();
 const port = Number(process.env.PORT ?? 3001);

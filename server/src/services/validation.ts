@@ -7,7 +7,7 @@ import type {
   ScopeType
 } from "@mcp-permission-checklist-generator/shared";
 import { mcpTemplates } from "@mcp-permission-checklist-generator/shared";
-import { containsSensitiveText } from "./redaction";
+import { containsSensitiveText } from "./redaction.js";
 
 const toolTypes: McpToolType[] = ["github", "filesystem", "browser", "custom"];
 const scopeTypes: ScopeType[] = [

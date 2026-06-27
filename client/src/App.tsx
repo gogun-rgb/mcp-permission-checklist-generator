@@ -17,10 +17,14 @@ import type {
   McpToolType,
   ScopeType
 } from "@mcp-permission-checklist-generator/shared";
+import { buildApiUrl } from "./utils/api";
 import "./styles.css";
 
 const templates: McpTemplateMap = mcpTemplates;
-const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const generateChecklistUrl = buildApiUrl(
+  import.meta.env.VITE_API_BASE_URL,
+  "/api/checklists/generate"
+);
 
 interface FormState {
   toolType: McpToolType;
@@ -168,7 +172,7 @@ export default function App() {
     };
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/checklists/generate`, {
+      const response = await fetch(generateChecklistUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
