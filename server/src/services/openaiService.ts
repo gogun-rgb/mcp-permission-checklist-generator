@@ -4,6 +4,7 @@ import type {
   ChecklistRequest,
   ChecklistResult
 } from "../types/checklist";
+import { redactSensitiveText } from "./redaction";
 
 const defaultModel = "gpt-4.1-mini";
 
@@ -36,20 +37,7 @@ export async function enhanceWithOpenAI(
       },
       {
         role: "user",
-        content: JSON.stringify({
-          tool: result.tool,
-          scope: result.scope,
-          overallRisk: result.overallRisk,
-          permissions: result.permissions.map((permission) => ({
-            name: permission.name,
-            category: permission.category,
-            riskLevel: permission.riskLevel,
-            approval: permission.recommendedApproval
-          })),
-          credentials: request.credentials,
-          automation: request.automation,
-          extraContext: scrubSensitiveText(request.extraContext ?? "")
-        })
+        content: JSON.stringify(buildOpenAiPayload(result, request))
       }
     ]
   });
@@ -62,6 +50,30 @@ export async function enhanceWithOpenAI(
   }
 
   return mergeEnhancement(result, enhancement);
+}
+
+export function buildOpenAiPayload(result: ChecklistResult, request: ChecklistRequest) {
+  return {
+    tool: {
+      name: redactSensitiveText(result.tool.name),
+      type: result.tool.type,
+      purpose: redactSensitiveText(result.tool.purpose)
+    },
+    scope: {
+      description: redactSensitiveText(result.scope.description),
+      isRestricted: result.scope.isRestricted
+    },
+    overallRisk: result.overallRisk,
+    permissions: result.permissions.map((permission) => ({
+      name: permission.name,
+      category: permission.category,
+      riskLevel: permission.riskLevel,
+      approval: permission.recommendedApproval
+    })),
+    credentials: request.credentials,
+    automation: request.automation,
+    extraContext: redactSensitiveText(request.extraContext ?? "")
+  };
 }
 
 function mergeEnhancement(
@@ -156,20 +168,12 @@ function readOptionalText(value: unknown, maxLength: number): string | undefined
     return undefined;
   }
 
-  const text = stripControlCharacters(scrubSensitiveText(value))
+  const text = stripControlCharacters(redactSensitiveText(value))
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, maxLength);
 
   return text || undefined;
-}
-
-function scrubSensitiveText(value: string): string {
-  return value
-    .replace(/sk-[a-zA-Z0-9_-]{8,}/g, "sk-****")
-    .replace(/ghp_[a-zA-Z0-9_]{8,}/g, "ghp_****")
-    .replace(/github_pat_[a-zA-Z0-9_]{8,}/g, "github_pat_****")
-    .replace(/(password|secret|token)\s*=\s*[^\s]+/gi, "$1=****");
 }
 
 function stripControlCharacters(value: string): string {

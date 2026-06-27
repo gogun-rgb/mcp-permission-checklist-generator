@@ -2,9 +2,12 @@ import type {
   AutomationMode,
   ChecklistRequest,
   CredentialType,
+  McpTemplateMap,
   McpToolType,
   ScopeType
 } from "../types/checklist";
+import templatesJson from "../templates/mcpTemplates.json";
+import { containsSensitiveText } from "./redaction";
 
 const toolTypes: McpToolType[] = ["github", "filesystem", "browser", "custom"];
 const scopeTypes: ScopeType[] = [
@@ -29,8 +32,7 @@ const automationModes: AutomationMode[] = [
   "auto_execute_all"
 ];
 
-const secretPattern =
-  /(sk-[a-zA-Z0-9_-]{12,}|ghp_[a-zA-Z0-9_]{12,}|github_pat_[a-zA-Z0-9_]{12,}|password\s*=|secret\s*=|token\s*=)/i;
+const templates = templatesJson as McpTemplateMap;
 
 export interface ValidationResult {
   ok: boolean;
@@ -59,6 +61,16 @@ export function validateChecklistRequest(input: unknown): ValidationResult {
     return fail("최소 하나 이상의 권한을 선택하세요.");
   }
 
+  const validPermissionIds = new Set(
+    templates[toolType].permissionGroups.flatMap((group) =>
+      group.permissions.map((permission) => permission.id)
+    )
+  );
+  const unknownPermissionIds = permissionIds.filter((id) => !validPermissionIds.has(id));
+  if (unknownPermissionIds.length > 0) {
+    return fail(`지원하지 않는 권한 ID가 포함되어 있습니다: ${unknownPermissionIds.join(", ")}`);
+  }
+
   const scopeInput = isRecord(input.scope) ? input.scope : {};
   const scopeType = readEnum(scopeInput.type, scopeTypes);
   if (!scopeType) {
@@ -74,7 +86,7 @@ export function validateChecklistRequest(input: unknown): ValidationResult {
 
   const extraContext = readText(input.extraContext, 1000);
   const joinedText = [toolName, purpose, scopeDescription, extraContext].join(" ");
-  if (secretPattern.test(joinedText)) {
+  if (containsSensitiveText(joinedText)) {
     return fail("요청에 실제 토큰, 비밀번호, 비밀값처럼 보이는 문자열이 포함되어 있습니다.");
   }
 

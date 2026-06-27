@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { generateChecklist } from "../server/src/services/checklistService";
+import { buildOpenAiPayload } from "../server/src/services/openaiService";
 import {
   createRuleBasedChecklist,
   getTemplates
 } from "../server/src/services/riskEngine";
+import { validateChecklistRequest } from "../server/src/services/validation";
 import type {
   ChecklistRequest,
   McpToolType,
@@ -140,5 +142,47 @@ describe("rule-based MCP permission risk engine", () => {
     expect(result.tool.type).toBe("browser");
     expect(result.permissions).toHaveLength(1);
     expect(result.overallRisk.score).toBeGreaterThanOrEqual(0);
+  });
+
+  it("rejects unknown permission IDs instead of silently lowering risk", () => {
+    const validation = validateChecklistRequest({
+      toolType: "github",
+      toolName: "GitHub MCP",
+      purpose: "test",
+      permissionIds: ["github.write.puhs"],
+      scope: {
+        type: "specific_repository",
+        description: "specific_repository"
+      },
+      credentials: ["none"],
+      automation: "approve_every_time"
+    });
+
+    expect(validation.ok).toBe(false);
+    expect(validation.error).toContain("지원하지 않는 권한 ID");
+  });
+
+  it("redacts user-derived secret text before building the OpenAI payload", () => {
+    const githubPatPrefix = ["github", "pat"].join("_") + "_";
+    const request = makeRequest(
+      "browser",
+      ["browser.read.public_search"],
+      "specific_domain"
+    );
+    request.toolName = "Bearer abcdefghijklmnopqrstuvwxyz";
+    request.purpose = "password is hunter2";
+    request.scope.description = "sessionid=abcdef123456789";
+    request.extraContext = `${githubPatPrefix}abcdefghijklmnopqrstuvwxyz`;
+
+    const result = createRuleBasedChecklist(request);
+    const payload = JSON.stringify(buildOpenAiPayload(result, request));
+
+    expect(payload).not.toContain("abcdefghijklmnopqrstuvwxyz");
+    expect(payload).not.toContain("hunter2");
+    expect(payload).not.toContain("abcdef123456789");
+    expect(payload).toContain("Bearer ****");
+    expect(payload).toContain("password ****");
+    expect(payload).toContain("sessionid=****");
+    expect(payload).toContain(`${githubPatPrefix}****`);
   });
 });
