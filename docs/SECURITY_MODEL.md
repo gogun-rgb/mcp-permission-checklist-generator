@@ -62,6 +62,7 @@ AI 응답은 JSON으로 요청하지만, 서버는 응답을 신뢰하지 않습
 - JSON 요청 크기 제한 `32kb`
 - `ALLOWED_ORIGINS` 기반 CORS allowlist
 - 빈 origin은 같은 origin 요청, 서버 간 호출, curl 같은 비브라우저 요청을 위해 허용
+- 단일 서비스 production 실행을 위해 `localhost:3001`, `127.0.0.1:3001`, Render의 `RENDER_EXTERNAL_HOSTNAME` origin을 지원
 - IP 기준 생성 API rate limit
 - `TRUST_PROXY=true`일 때만 Express `trust proxy` 활성화
 
@@ -71,9 +72,16 @@ AI 응답은 JSON으로 요청하지만, 서버는 응답을 신뢰하지 않습
 
 rate limit 상태는 단일 Node.js 프로세스의 메모리 `Map`에 저장됩니다. 요청 시점에 만료된 bucket을 lazy cleanup하고, 기본 최대 bucket 수는 10,000개로 제한해 서로 다른 IP가 한 번씩 요청해도 Map이 무한히 증가하지 않게 합니다. 여러 서버 인스턴스에서는 제한 상태가 공유되지 않으므로 실제 대규모 배포에서는 Redis 같은 외부 store가 필요합니다.
 
+## Production Static Serving
+
+production 모드에서 Express는 빌드된 React 앱을 정적 파일로 제공합니다. `/api`와 `/health`는 정적 fallback보다 먼저 처리되어 API 오류가 HTML로 바뀌지 않습니다. 존재하지 않는 `/api/*`는 JSON 404를 반환하고, 존재하지 않는 SPA 경로는 `index.html`로 fallback합니다.
+
+Docker 이미지에는 `.env`, `server/.env`, Git metadata, coverage, local build cache를 포함하지 않습니다. `OPENAI_API_KEY`는 플랫폼 secret으로만 설정해야 합니다.
+
 ## 알려진 한계
 
 - 휴리스틱 모델이므로 조직의 실제 보안 정책을 대체하지 않습니다.
 - MCP 서버의 실제 권한 manifest를 자동으로 검증하지 않습니다.
 - 메모리 기반 rate limit은 단일 서버 프로세스 기준입니다. 만료 bucket cleanup과 최대 bucket 수 제한은 있지만, 다중 인스턴스 배포에서는 Redis 같은 외부 저장소가 필요합니다.
+- Docker/Render 설정은 단일 웹 서비스 배포를 돕지만, 실제 플랫폼 secret과 도메인 설정은 배포 환경에서 관리해야 합니다.
 - 마스킹 규칙은 알려진 패턴 중심이며 모든 비밀값을 보장하지 않습니다.

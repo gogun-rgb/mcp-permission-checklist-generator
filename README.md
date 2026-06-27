@@ -85,6 +85,53 @@ npm.cmd run dev
 - 프론트엔드: `http://localhost:5173`
 - 백엔드 API: `http://localhost:3001`
 
+## 프로덕션 실행
+
+프로덕션에서는 Express 서버 하나가 Vite로 빌드된 React 정적 파일과 API를 함께 제공합니다.
+
+```bash
+npm run build
+npm run start
+```
+
+실행 후 단일 URL에서 다음 경로를 제공합니다.
+
+| 경로 | 역할 |
+| --- | --- |
+| `/` | React 웹 화면 |
+| `/assets/*` | Vite 정적 파일 |
+| `/api/checklists/*` | Express API |
+| `/health` | 상태 확인 JSON |
+
+OpenAI API 키는 선택 사항입니다. 키가 없어도 규칙 기반 분석은 동작합니다. 이 앱은 실제 MCP 권한을 변경하지 않고 점검표만 생성합니다.
+
+## Docker 실행
+
+```bash
+docker build -t mcp-permission-checklist-generator .
+docker run --rm -p 3001:3001 -e PORT=3001 -e NODE_ENV=production mcp-permission-checklist-generator
+```
+
+Windows PowerShell 한 줄 예시:
+
+```powershell
+docker run --rm -p 3001:3001 -e PORT=3001 -e NODE_ENV=production mcp-permission-checklist-generator
+```
+
+컨테이너 실행 후 `http://localhost:3001`과 `http://localhost:3001/health`를 확인하세요.
+
+## 배포 구조
+
+이 저장소는 단일 Docker 웹 서비스 배포를 기준으로 합니다. `Dockerfile`은 shared, client, server를 빌드한 뒤 production 실행에 필요한 파일만 최종 이미지에 복사합니다. `render.yaml`은 Render Web Service의 Docker 배포 설정 예시이며, `OPENAI_API_KEY`는 플랫폼 secret으로만 설정해야 합니다.
+
+Render 웹 UI 배포 절차는 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고하세요.
+
+배포 후 간단한 smoke test를 실행할 수 있습니다.
+
+```bash
+npm run smoke -- https://your-deployed-url.example
+```
+
 ## 환경변수
 
 루트 `.env` 하나를 기본 source of truth로 사용합니다.
@@ -106,7 +153,7 @@ Copy-Item .env.example .env
 | `OPENAI_API_KEY` | 서버 전용. 선택적 OpenAI API 키 | 없음 |
 | `OPENAI_MODEL` | 서버 전용. 설명 보강에 사용할 모델 | `gpt-4.1-mini` |
 | `PORT` | 서버 전용. Express 서버 포트 | `3001` |
-| `ALLOWED_ORIGINS` | 서버 전용. 쉼표로 구분한 CORS 허용 origin | `http://localhost:5173,http://127.0.0.1:5173` |
+| `ALLOWED_ORIGINS` | 서버 전용. 쉼표로 구분한 CORS 허용 origin | 로컬 개발과 단일 서비스 origin |
 | `CHECKLIST_RATE_LIMIT_PER_MINUTE` | 서버 전용. IP당 1분 생성 API 허용 횟수 | `10` |
 | `TRUST_PROXY` | 서버 전용. 프록시 뒤에서 Express `trust proxy` 활성화 여부 | `false` |
 | `VITE_API_BASE_URL` | Vite가 빌드 시 클라이언트에 포함하는 공개 API 주소 | 빈 값이면 Vite proxy 사용 |
@@ -143,6 +190,8 @@ npm run typecheck
 npm run test
 npm run build
 ```
+
+프로덕션 서버 통합 테스트는 `/health`, 정적 HTML, SPA fallback, API JSON 404, 체크리스트 API를 확인합니다.
 
 테스트는 OpenAI API 키 없이 통과하도록 구성되어 있습니다.
 

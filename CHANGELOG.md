@@ -11,6 +11,9 @@
 - Vite가 루트 `.env`의 `VITE_API_BASE_URL`을 읽도록 설정했습니다.
 - rate limiter의 만료 bucket cleanup과 최대 bucket 수 제한을 추가했습니다.
 - 환경변수 경로, API URL 생성, rate limiter 메모리 관리 테스트를 추가했습니다.
+- production에서 Express가 빌드된 React 클라이언트를 함께 제공하는 단일 서비스 구조를 추가했습니다.
+- Dockerfile, `.dockerignore`, Render Blueprint 설정, smoke test 스크립트를 추가했습니다.
+- `/health`, 정적 HTML, SPA fallback, API JSON 404, 체크리스트 API 통합 테스트를 추가했습니다.
 - GitHub Actions CI를 추가했습니다.
 - 위험 모델, 보안 모델, 아키텍처, 스크린샷 가이드를 문서화했습니다.
 - 보안 및 신뢰성 테스트를 보강했습니다.
