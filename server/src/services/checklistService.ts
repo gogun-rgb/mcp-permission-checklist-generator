@@ -1,6 +1,9 @@
 import { enhanceWithOpenAI } from "./openaiService";
 import { createRuleBasedChecklist } from "./riskEngine";
-import type { ChecklistRequest, ChecklistResult } from "../types/checklist";
+import type {
+  ChecklistRequest,
+  ChecklistResult
+} from "@mcp-permission-checklist-generator/shared";
 
 type ChecklistEnhancer = (
   result: ChecklistResult,

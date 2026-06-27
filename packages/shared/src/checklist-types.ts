@@ -10,6 +10,8 @@ export type PermissionCategory =
 
 export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
+export type AnalysisMode = "RULE_ONLY" | "RULE_WITH_AI_EXPLANATION";
+
 export type ApprovalType =
   | "NO_APPROVAL"
   | "SESSION_APPROVAL"
@@ -113,6 +115,8 @@ export interface PreConnectionChecklistItem {
 }
 
 export interface ChecklistResult {
+  riskModelVersion: string;
+  analysisMode: AnalysisMode;
   tool: {
     name: string;
     type: McpToolType;

@@ -1,4 +1,4 @@
-import type { RiskLevel } from "../types/checklist";
+import type { RiskLevel } from "@mcp-permission-checklist-generator/shared";
 import { riskLabels } from "../utils/formatters";
 
 interface RiskBadgeProps {

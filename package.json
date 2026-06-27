@@ -1,18 +1,19 @@
 {
   "name": "mcp-permission-checklist-generator",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "workspaces": [
     "client",
-    "server"
+    "server",
+    "packages/*"
   ],
   "scripts": {
-    "dev": "concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w server && npm run build -w client",
-    "test": "vitest run",
+    "dev": "npm run build -w @mcp-permission-checklist-generator/shared && concurrently -n server,client -c blue,green \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w @mcp-permission-checklist-generator/shared && npm run build -w server && npm run build -w client",
+    "test": "npm run build -w @mcp-permission-checklist-generator/shared && vitest run",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
+    "typecheck": "npm run build -w @mcp-permission-checklist-generator/shared && npm run typecheck -w server && npm run typecheck -w client"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
