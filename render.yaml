@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: mcp-permission-checklist-generator
+    runtime: docker
+    branch: main
+    plan: free
+    autoDeployTrigger: checksPass
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: OPENAI_MODEL
+        value: gpt-4.1-mini
+      - key: TRUST_PROXY
+        value: "true"
+      - key: CHECKLIST_RATE_LIMIT_PER_MINUTE
+        value: "10"
+      - key: OPENAI_API_KEY
+        sync: false

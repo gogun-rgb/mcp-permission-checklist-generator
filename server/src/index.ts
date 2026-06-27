@@ -1,67 +1,27 @@
-import cors from "cors";
-import express from "express";
-import helmet from "helmet";
+import type { Server } from "node:http";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { createApp } from "./app.js";
 import { loadEnvironment } from "./config/env.js";
-import { checklistRouter } from "./routes/checklists.js";
-import { isCorsOriginAllowed, parseAllowedOrigins } from "./services/corsConfig.js";
 
 loadEnvironment();
 
-const app = express();
 const port = Number(process.env.PORT ?? 3001);
-const allowedOrigins = parseAllowedOrigins(process.env.ALLOWED_ORIGINS);
-const trustProxy = process.env.TRUST_PROXY === "true";
+const app = createApp({ environment: getRuntimeEnvironment() });
 
-app.disable("x-powered-by");
-if (trustProxy) {
-  app.set("trust proxy", 1);
+export function startServer(): Server {
+  return app.listen(port, () => {
+    console.log(`MCP permission checklist API listening on port ${port}`);
+  });
 }
-app.use(
-  helmet({
-    crossOriginEmbedderPolicy: false
-  })
-);
-app.use(
-  cors({
-    origin(origin, callback) {
-      if (isCorsOriginAllowed(origin, allowedOrigins)) {
-        callback(null, true);
-        return;
-      }
 
-      callback(new Error("CORS origin is not allowed"));
-    }
-  })
-);
-app.use(express.json({ limit: "32kb" }));
+startServer();
 
-app.get("/health", (_request, response) => {
-  response.json({ ok: true });
-});
-
-app.use("/api/checklists", checklistRouter);
-
-app.use((_request, response) => {
-  response.status(404).json({ error: "요청한 API를 찾을 수 없습니다." });
-});
-
-app.use(
-  (
-    error: Error,
-    _request: express.Request,
-    response: express.Response,
-    next: express.NextFunction
-  ) => {
-    void next;
-    const message =
-      process.env.NODE_ENV === "production"
-        ? "서버에서 요청을 처리하지 못했습니다."
-        : error.message;
-
-    response.status(500).json({ error: message });
+function getRuntimeEnvironment(): string {
+  if (process.env.NODE_ENV) {
+    return process.env.NODE_ENV;
   }
-);
 
-app.listen(port, () => {
-  console.log(`MCP permission checklist API listening on port ${port}`);
-});
+  const entryPath = fileURLToPath(import.meta.url);
+  return entryPath.includes(`${path.sep}dist${path.sep}`) ? "production" : "development";
+}

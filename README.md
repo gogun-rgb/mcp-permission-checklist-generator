@@ -85,6 +85,56 @@ npm.cmd run dev
 - 프론트엔드: `http://localhost:5173`
 - 백엔드 API: `http://localhost:3001`
 
+## 프로덕션 실행
+
+프로덕션에서는 Express 서버 하나가 Vite로 빌드된 React 정적 파일과 API를 함께 제공합니다.
+
+```bash
+npm run build
+npm run start
+```
+
+실행 후 단일 URL에서 다음 경로를 제공합니다.
+
+| 경로 | 역할 |
+| --- | --- |
+| `/` | React 웹 화면 |
+| `/assets/*` | Vite 정적 파일 |
+| `/api/checklists/*` | Express API |
+| `/health` | 상태 확인 JSON |
+
+OpenAI API 키는 선택 사항입니다. 키가 없어도 규칙 기반 분석은 동작합니다. 이 앱은 실제 MCP 권한을 변경하지 않고 점검표만 생성합니다.
+
+## Docker 실행
+
+```bash
+docker build -t mcp-permission-checklist-generator .
+docker run --rm -p 3001:3001 mcp-permission-checklist-generator
+docker run --rm -p 3002:3001 mcp-permission-checklist-generator
+```
+
+Windows PowerShell 한 줄 예시:
+
+```powershell
+docker run --rm -p 3002:3001 mcp-permission-checklist-generator
+```
+
+컨테이너 내부 서버는 기본적으로 `3001`에서 실행되며, 호스트 포트는 `3001`, `3002`처럼 자유롭게 바꿀 수 있습니다. 컨테이너 실행 후 `http://localhost:3001` 또는 `http://localhost:3002`와 `/health`를 확인하세요.
+
+정적 JS/CSS 파일은 같은 Express 서비스에서 직접 제공되므로 외부 호스트 포트를 바꿔도 `ALLOWED_ORIGINS`를 추가할 필요가 없습니다. 같은 origin의 `/api` 요청도 현재 요청의 host 기준으로 허용됩니다. `ALLOWED_ORIGINS`는 별도 프론트엔드나 다른 origin에서 `/api`를 호출해야 할 때 사용하는 서버 API CORS 설정입니다.
+
+## 배포 구조
+
+이 저장소는 단일 Docker 웹 서비스 배포를 기준으로 합니다. `Dockerfile`은 shared, client, server를 빌드한 뒤 production 실행에 필요한 파일만 최종 이미지에 복사합니다. `render.yaml`은 Render Web Service의 Docker 배포 설정 예시이며, `OPENAI_API_KEY`는 플랫폼 secret으로만 설정해야 합니다.
+
+Render 웹 UI 배포 절차는 [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)를 참고하세요.
+
+배포 후 간단한 smoke test를 실행할 수 있습니다.
+
+```bash
+npm run smoke -- https://your-deployed-url.example
+```
+
 ## 환경변수
 
 루트 `.env` 하나를 기본 source of truth로 사용합니다.
@@ -106,7 +156,7 @@ Copy-Item .env.example .env
 | `OPENAI_API_KEY` | 서버 전용. 선택적 OpenAI API 키 | 없음 |
 | `OPENAI_MODEL` | 서버 전용. 설명 보강에 사용할 모델 | `gpt-4.1-mini` |
 | `PORT` | 서버 전용. Express 서버 포트 | `3001` |
-| `ALLOWED_ORIGINS` | 서버 전용. 쉼표로 구분한 CORS 허용 origin | `http://localhost:5173,http://127.0.0.1:5173` |
+| `ALLOWED_ORIGINS` | 서버 전용. 별도 origin에서 `/api`를 호출할 때 허용할 CORS origin 목록 | 로컬 개발과 단일 서비스 API origin |
 | `CHECKLIST_RATE_LIMIT_PER_MINUTE` | 서버 전용. IP당 1분 생성 API 허용 횟수 | `10` |
 | `TRUST_PROXY` | 서버 전용. 프록시 뒤에서 Express `trust proxy` 활성화 여부 | `false` |
 | `VITE_API_BASE_URL` | Vite가 빌드 시 클라이언트에 포함하는 공개 API 주소 | 빈 값이면 Vite proxy 사용 |
@@ -120,7 +170,7 @@ Copy-Item .env.example .env
 - 사용자 입력은 길이, enum, 권한 ID allowlist로 검증합니다.
 - `Bearer ...`, `sessionid=...`, `github_pat_...`, `password is ...` 같은 민감정보 패턴은 마스킹하거나 거절합니다.
 - AI 응답은 허용된 설명 필드만 반영합니다.
-- Express는 Helmet, CORS allowlist, JSON 요청 크기 제한, rate limit을 적용합니다.
+- Express는 Helmet, `/api` CORS allowlist, JSON 요청 크기 제한, rate limit을 적용합니다.
 - Rate limit은 단일 프로세스 메모리 기반이며 만료 bucket을 lazy cleanup하고 최대 bucket 수를 제한합니다.
 
 자세한 내용은 [docs/SECURITY_MODEL.md](docs/SECURITY_MODEL.md)를 참고하세요.
@@ -143,6 +193,10 @@ npm run typecheck
 npm run test
 npm run build
 ```
+
+프로덕션 서버 통합 테스트는 `/health`, 정적 HTML, 실제 JS/CSS asset MIME 타입, SPA fallback, API JSON 404, 체크리스트 API를 확인합니다.
+
+smoke test도 `/` HTML에서 실제 `<script src>`와 stylesheet 경로를 추출해 JS/CSS 응답 상태와 MIME 타입을 확인합니다.
 
 테스트는 OpenAI API 키 없이 통과하도록 구성되어 있습니다.
 
