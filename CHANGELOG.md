@@ -14,6 +14,8 @@
 - production에서 Express가 빌드된 React 클라이언트를 함께 제공하는 단일 서비스 구조를 추가했습니다.
 - Dockerfile, `.dockerignore`, Render Blueprint 설정, smoke test 스크립트를 추가했습니다.
 - `/health`, 정적 HTML, SPA fallback, API JSON 404, 체크리스트 API 통합 테스트를 추가했습니다.
+- CORS middleware를 `/api` 경로로 제한하고, 허용되지 않은 API origin은 JSON 403으로 응답하도록 수정했습니다.
+- production asset 통합 테스트와 smoke test에서 실제 JS/CSS 파일의 상태 코드와 MIME 타입을 검증하도록 보강했습니다.
 - GitHub Actions CI를 추가했습니다.
 - 위험 모델, 보안 모델, 아키텍처, 스크린샷 가이드를 문서화했습니다.
 - 보안 및 신뢰성 테스트를 보강했습니다.

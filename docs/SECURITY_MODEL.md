@@ -60,9 +60,11 @@ AI 응답은 JSON으로 요청하지만, 서버는 응답을 신뢰하지 않습
 
 - Helmet 보안 헤더
 - JSON 요청 크기 제한 `32kb`
-- `ALLOWED_ORIGINS` 기반 CORS allowlist
-- 빈 origin은 같은 origin 요청, 서버 간 호출, curl 같은 비브라우저 요청을 위해 허용
-- 단일 서비스 production 실행을 위해 `localhost:3001`, `127.0.0.1:3001`, Render의 `RENDER_EXTERNAL_HOSTNAME` origin을 지원
+- `/api` 경로에만 적용되는 `ALLOWED_ORIGINS` 기반 CORS allowlist
+- `/assets/*` 정적 파일과 `/health`는 API CORS 검사와 분리
+- 현재 요청의 `protocol://host`와 일치하는 같은 origin API 요청은 동적으로 허용
+- 빈 origin은 같은 origin 요청, 서버 간 호출, curl 같은 비브라우저 API 요청을 위해 허용
+- 단일 서비스 production 실행을 위해 `localhost:3001`, `127.0.0.1:3001`, Render의 `RENDER_EXTERNAL_HOSTNAME` API origin을 지원
 - IP 기준 생성 API rate limit
 - `TRUST_PROXY=true`일 때만 Express `trust proxy` 활성화
 
@@ -74,7 +76,7 @@ rate limit 상태는 단일 Node.js 프로세스의 메모리 `Map`에 저장됩
 
 ## Production Static Serving
 
-production 모드에서 Express는 빌드된 React 앱을 정적 파일로 제공합니다. `/api`와 `/health`는 정적 fallback보다 먼저 처리되어 API 오류가 HTML로 바뀌지 않습니다. 존재하지 않는 `/api/*`는 JSON 404를 반환하고, 존재하지 않는 SPA 경로는 `index.html`로 fallback합니다.
+production 모드에서 Express는 빌드된 React 앱을 정적 파일로 제공합니다. `/api`와 `/health`는 정적 fallback보다 먼저 처리되어 API 오류가 HTML로 바뀌지 않습니다. 존재하지 않는 `/api/*`는 CORS 검사 후 JSON 404를 반환하고, 허용되지 않은 origin의 `/api/*` 요청은 JSON 403을 반환합니다. `/assets/*`는 API CORS allowlist와 무관하게 정적 파일로 제공되며, 존재하지 않는 SPA 경로는 `index.html`로 fallback합니다.
 
 Docker 이미지에는 `.env`, `server/.env`, Git metadata, coverage, local build cache를 포함하지 않습니다. `OPENAI_API_KEY`는 플랫폼 secret으로만 설정해야 합니다.
 

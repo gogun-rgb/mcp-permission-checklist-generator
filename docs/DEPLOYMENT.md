@@ -49,14 +49,17 @@ Docker Desktop 또는 Docker daemon이 실행 중이어야 합니다.
 
 ```bash
 docker build -t mcp-permission-checklist-generator .
-docker run --rm -p 3001:3001 -e PORT=3001 -e NODE_ENV=production mcp-permission-checklist-generator
+docker run --rm -p 3001:3001 mcp-permission-checklist-generator
+docker run --rm -p 3002:3001 mcp-permission-checklist-generator
 ```
 
 Windows PowerShell 한 줄 예시:
 
 ```powershell
-docker run --rm -p 3001:3001 -e PORT=3001 -e NODE_ENV=production mcp-permission-checklist-generator
+docker run --rm -p 3002:3001 mcp-permission-checklist-generator
 ```
+
+외부 호스트 포트는 자유롭게 바꿀 수 있습니다. 정적 JS/CSS 파일은 CORS allowlist와 무관하게 같은 Express 서비스에서 제공되므로 포트를 바꿨다는 이유만으로 `ALLOWED_ORIGINS`를 추가하지 않아도 됩니다. 같은 origin의 `/api` 요청도 현재 요청의 host 기준으로 허용됩니다. `ALLOWED_ORIGINS`는 별도 프론트엔드 origin에서 `/api`를 호출할 때만 설정하세요.
 
 ## 배포 후 smoke test
 
@@ -70,6 +73,7 @@ npm run smoke -- https://your-render-url.onrender.com
 
 - HTTPS 접속
 - `/` HTML 응답
+- HTML에 포함된 JS/CSS asset 200 응답과 올바른 MIME 타입
 - `/health` JSON 응답
 - 체크리스트 API 규칙 기반 결과
 - OpenAI API 키 없이 기본 분석 가능
