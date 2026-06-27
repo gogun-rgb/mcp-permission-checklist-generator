@@ -5,7 +5,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { FormEvent, useMemo, useState } from "react";
-import templatesJson from "./data/mcpTemplates.json";
+import { mcpTemplates } from "@mcp-permission-checklist-generator/shared";
 import { PermissionSelector } from "./components/PermissionSelector";
 import { ResultPanel } from "./components/ResultPanel";
 import type {
@@ -16,10 +16,15 @@ import type {
   McpTemplateMap,
   McpToolType,
   ScopeType
-} from "./types/checklist";
+} from "@mcp-permission-checklist-generator/shared";
+import { buildApiUrl } from "./utils/api";
 import "./styles.css";
 
-const templates = templatesJson as McpTemplateMap;
+const templates: McpTemplateMap = mcpTemplates;
+const generateChecklistUrl = buildApiUrl(
+  import.meta.env.VITE_API_BASE_URL,
+  "/api/checklists/generate"
+);
 
 interface FormState {
   toolType: McpToolType;
@@ -167,7 +172,7 @@ export default function App() {
     };
 
     try {
-      const response = await fetch("/api/checklists/generate", {
+      const response = await fetch(generateChecklistUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"

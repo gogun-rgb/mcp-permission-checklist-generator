@@ -1,4 +1,4 @@
-import type { McpTemplate } from "../types/checklist";
+import type { McpTemplate } from "@mcp-permission-checklist-generator/shared";
 import { categoryLabels } from "../utils/formatters";
 
 interface PermissionSelectorProps {

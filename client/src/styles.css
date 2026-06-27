@@ -395,6 +395,42 @@ button:focus-visible {
   line-height: 1.6;
 }
 
+.meta-badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.analysis-mode-badge,
+.model-version-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 5px 9px;
+  font-size: 0.76rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.analysis-mode-badge {
+  background: #e0f2fe;
+  color: #075985;
+}
+
+.model-version-badge {
+  background: #f1f5f9;
+  color: #334155;
+}
+
+.analysis-note {
+  max-width: 620px;
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
 .risk-badge {
   display: inline-flex;
   width: fit-content;

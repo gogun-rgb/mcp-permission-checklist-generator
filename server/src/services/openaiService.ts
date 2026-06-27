@@ -3,8 +3,8 @@ import type {
   AiChecklistEnhancement,
   ChecklistRequest,
   ChecklistResult
-} from "../types/checklist";
-import { redactSensitiveText } from "./redaction";
+} from "@mcp-permission-checklist-generator/shared";
+import { redactSensitiveText } from "./redaction.js";
 
 const defaultModel = "gpt-4.1-mini";
 
@@ -76,7 +76,7 @@ export function buildOpenAiPayload(result: ChecklistResult, request: ChecklistRe
   };
 }
 
-function mergeEnhancement(
+export function mergeEnhancement(
   result: ChecklistResult,
   enhancement: AiChecklistEnhancement
 ): ChecklistResult {
@@ -93,6 +93,7 @@ function mergeEnhancement(
 
   return {
     ...result,
+    analysisMode: "RULE_WITH_AI_EXPLANATION",
     overallRisk: {
       ...result.overallRisk,
       summary: enhancement.summary || result.overallRisk.summary
@@ -107,7 +108,9 @@ function mergeEnhancement(
   };
 }
 
-function parseEnhancement(content: string | null | undefined): AiChecklistEnhancement | null {
+export function parseEnhancement(
+  content: string | null | undefined
+): AiChecklistEnhancement | null {
   if (!content) {
     return null;
   }
@@ -119,7 +122,7 @@ function parseEnhancement(content: string | null | undefined): AiChecklistEnhanc
       return null;
     }
 
-    return {
+    const enhancement = {
       summary: readOptionalText(parsed.summary, 180),
       warnings: readTextArray(parsed.warnings, 4, 180),
       minimumPrivilegeRecommendations: readTextArray(
@@ -129,6 +132,17 @@ function parseEnhancement(content: string | null | undefined): AiChecklistEnhanc
       ),
       approvalStepDescriptions: readApprovalDescriptions(parsed.approvalStepDescriptions)
     };
+
+    if (
+      !enhancement.summary &&
+      !enhancement.warnings &&
+      !enhancement.minimumPrivilegeRecommendations &&
+      !enhancement.approvalStepDescriptions
+    ) {
+      return null;
+    }
+
+    return enhancement;
   } catch {
     return null;
   }

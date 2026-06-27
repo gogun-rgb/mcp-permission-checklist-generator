@@ -1,4 +1,3 @@
-import templatesJson from "../templates/mcpTemplates.json";
 import type {
   ApprovalStep,
   ApprovalType,
@@ -13,9 +12,13 @@ import type {
   RiskLevel,
   ScopeType,
   TemplatePermission
-} from "../types/checklist";
+} from "@mcp-permission-checklist-generator/shared";
+import {
+  mcpTemplates,
+  RISK_MODEL_VERSION
+} from "@mcp-permission-checklist-generator/shared";
 
-const templates = templatesJson as McpTemplateMap;
+const templates: McpTemplateMap = mcpTemplates;
 
 const riskLevelOrder: Record<RiskLevel, number> = {
   LOW: 0,
@@ -320,6 +323,8 @@ export function createRuleBasedChecklist(request: ChecklistRequest): ChecklistRe
   });
 
   return {
+    riskModelVersion: RISK_MODEL_VERSION,
+    analysisMode: "RULE_ONLY",
     tool: {
       name: request.toolName || template.defaultName,
       type: request.toolType,

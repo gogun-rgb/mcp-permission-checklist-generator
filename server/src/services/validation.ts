@@ -5,9 +5,9 @@ import type {
   McpTemplateMap,
   McpToolType,
   ScopeType
-} from "../types/checklist";
-import templatesJson from "../templates/mcpTemplates.json";
-import { containsSensitiveText } from "./redaction";
+} from "@mcp-permission-checklist-generator/shared";
+import { mcpTemplates } from "@mcp-permission-checklist-generator/shared";
+import { containsSensitiveText } from "./redaction.js";
 
 const toolTypes: McpToolType[] = ["github", "filesystem", "browser", "custom"];
 const scopeTypes: ScopeType[] = [
@@ -32,7 +32,7 @@ const automationModes: AutomationMode[] = [
   "auto_execute_all"
 ];
 
-const templates = templatesJson as McpTemplateMap;
+const templates: McpTemplateMap = mcpTemplates;
 
 export interface ValidationResult {
   ok: boolean;

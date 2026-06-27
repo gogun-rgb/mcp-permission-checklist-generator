@@ -1,6 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
+import { pathToFileURL } from "node:url";
+import { buildApiUrl } from "../client/src/utils/api";
+import { checklistToMarkdown } from "../client/src/utils/formatters";
+import { getEnvironmentPaths } from "../server/src/config/env";
 import { generateChecklist } from "../server/src/services/checklistService";
-import { buildOpenAiPayload } from "../server/src/services/openaiService";
+import { isCorsOriginAllowed, parseAllowedOrigins } from "../server/src/services/corsConfig";
+import {
+  buildOpenAiPayload,
+  mergeEnhancement,
+  parseEnhancement
+} from "../server/src/services/openaiService";
+import { createRateLimitTracker } from "../server/src/services/rateLimit";
+import { createInMemoryRateLimiter } from "../server/src/services/rateLimit";
 import {
   createRuleBasedChecklist,
   getTemplates
@@ -10,7 +23,21 @@ import type {
   ChecklistRequest,
   McpToolType,
   ScopeType
-} from "../server/src/types/checklist";
+} from "@mcp-permission-checklist-generator/shared";
+
+const originalOpenAiApiKey = process.env.OPENAI_API_KEY;
+
+beforeEach(() => {
+  delete process.env.OPENAI_API_KEY;
+});
+
+afterEach(() => {
+  if (originalOpenAiApiKey) {
+    process.env.OPENAI_API_KEY = originalOpenAiApiKey;
+  } else {
+    delete process.env.OPENAI_API_KEY;
+  }
+});
 
 function makeRequest(
   toolType: McpToolType,
@@ -43,6 +70,8 @@ describe("rule-based MCP permission risk engine", () => {
     );
 
     expect(["LOW", "MEDIUM"]).toContain(result.overallRisk.level);
+    expect(result.riskModelVersion).toBe("1.0.0");
+    expect(result.analysisMode).toBe("RULE_ONLY");
   });
 
   it("rates GitHub Push plus PR merge as HIGH", () => {
@@ -142,6 +171,102 @@ describe("rule-based MCP permission risk engine", () => {
     expect(result.tool.type).toBe("browser");
     expect(result.permissions).toHaveLength(1);
     expect(result.overallRisk.score).toBeGreaterThanOrEqual(0);
+    expect(result.analysisMode).toBe("RULE_ONLY");
+  });
+
+  it("uses RULE_ONLY when no OpenAI API key is configured", async () => {
+    const result = await generateChecklist(
+      makeRequest("github", ["github.read.repo_info"], "specific_repository")
+    );
+
+    expect(result.analysisMode).toBe("RULE_ONLY");
+    expect(result.riskModelVersion).toBe("1.0.0");
+  });
+
+  it("uses RULE_WITH_AI_EXPLANATION only when an allowed AI enhancement is applied", () => {
+    const baseResult = createRuleBasedChecklist(
+      makeRequest(
+        "github",
+        ["github.write.push", "github.write.pr_merge"],
+        "specific_repository"
+      )
+    );
+    const enhancement = parseEnhancement(
+      JSON.stringify({
+        summary: "초보자에게 보여줄 짧은 설명입니다.",
+        overallRisk: { level: "LOW", score: 0 },
+        permissions: []
+      })
+    );
+
+    expect(enhancement).not.toBeNull();
+    const result = mergeEnhancement(baseResult, enhancement!);
+
+    expect(result.analysisMode).toBe("RULE_WITH_AI_EXPLANATION");
+    expect(result.overallRisk.level).toBe(baseResult.overallRisk.level);
+    expect(result.overallRisk.score).toBe(baseResult.overallRisk.score);
+    expect(result.permissions).toEqual(baseResult.permissions);
+  });
+
+  it("ignores invalid or irrelevant AI JSON", () => {
+    expect(parseEnhancement("{not json")).toBeNull();
+    expect(
+      parseEnhancement(JSON.stringify({ overallRisk: { level: "LOW", score: 0 } }))
+    ).toBeNull();
+  });
+
+  it("truncates very long AI sentences before merging", () => {
+    const enhancement = parseEnhancement(
+      JSON.stringify({
+        summary: "가".repeat(500),
+        warnings: ["나".repeat(500)]
+      })
+    );
+
+    expect(enhancement?.summary).toHaveLength(180);
+    expect(enhancement?.warnings?.[0]).toHaveLength(180);
+  });
+
+  it("normalizes none away when credentials include another credential", () => {
+    const mixedRequest = makeRequest("github", ["github.read.repo_info"], "specific_repository");
+    mixedRequest.credentials = ["none", "github_token"];
+    const tokenRequest = makeRequest("github", ["github.read.repo_info"], "specific_repository");
+    tokenRequest.credentials = ["github_token"];
+
+    const mixedResult = createRuleBasedChecklist(mixedRequest);
+    const tokenResult = createRuleBasedChecklist(tokenRequest);
+
+    expect(mixedResult.overallRisk.score).toBe(tokenResult.overallRisk.score);
+  });
+
+  it("raises all repositories plus write permission to CRITICAL", () => {
+    const result = createRuleBasedChecklist(
+      makeRequest("github", ["github.write.file_modify"], "all_repositories")
+    );
+
+    expect(result.overallRisk.level).toBe("CRITICAL");
+  });
+
+  it("raises auto execution plus executable permission to CRITICAL", () => {
+    const request = makeRequest(
+      "filesystem",
+      ["filesystem.sensitive.script_run"],
+      "specific_folder"
+    );
+    request.automation = "auto_execute_all";
+
+    const result = createRuleBasedChecklist(request);
+
+    expect(result.overallRisk.level).toBe("CRITICAL");
+  });
+
+  it("raises cookies plus network transfer to CRITICAL", () => {
+    const request = makeRequest("browser", ["browser.read.open_page"], "specific_domain");
+    request.credentials = ["cookies"];
+
+    const result = createRuleBasedChecklist(request);
+
+    expect(result.overallRisk.level).toBe("CRITICAL");
   });
 
   it("rejects unknown permission IDs instead of silently lowering risk", () => {
@@ -185,4 +310,188 @@ describe("rule-based MCP permission risk engine", () => {
     expect(payload).toContain("sessionid=****");
     expect(payload).toContain(`${githubPatPrefix}****`);
   });
+
+  it("allows configured CORS origins and rejects unknown origins", () => {
+    const allowedOrigins = parseAllowedOrigins("https://app.example.com, http://localhost:5173");
+
+    expect(isCorsOriginAllowed("https://app.example.com", allowedOrigins)).toBe(true);
+    expect(isCorsOriginAllowed(undefined, allowedOrigins)).toBe(true);
+    expect(isCorsOriginAllowed("https://evil.example.com", allowedOrigins)).toBe(false);
+  });
+
+  it("builds API URLs from empty or absolute base URLs", () => {
+    expect(buildApiUrl("", "/api/checklists/generate")).toBe("/api/checklists/generate");
+    expect(buildApiUrl(undefined, "api/checklists/generate")).toBe("/api/checklists/generate");
+    expect(buildApiUrl("https://api.example.com/", "/api/checklists/generate")).toBe(
+      "https://api.example.com/api/checklists/generate"
+    );
+  });
+
+  it("calculates the repository root env path from src and dist module URLs", () => {
+    const repositoryRoot = process.cwd();
+    const sourceModuleUrl = pathToFileURL(
+      path.join(repositoryRoot, "server", "src", "config", "env.ts")
+    ).href;
+    const distModuleUrl = pathToFileURL(
+      path.join(repositoryRoot, "server", "dist", "config", "env.js")
+    ).href;
+
+    expect(getEnvironmentPaths(sourceModuleUrl).rootEnvPath).toBe(
+      path.join(repositoryRoot, ".env")
+    );
+    expect(getEnvironmentPaths(distModuleUrl).rootEnvPath).toBe(
+      path.join(repositoryRoot, ".env")
+    );
+  });
+
+  it("does not pass server-only OpenAI keys through client config code", () => {
+    const clientFiles = [
+      path.join(process.cwd(), "client", "src", "App.tsx"),
+      path.join(process.cwd(), "client", "src", "utils", "api.ts"),
+      path.join(process.cwd(), "client", "vite.config.ts")
+    ];
+
+    for (const file of clientFiles) {
+      expect(fs.readFileSync(file, "utf8")).not.toContain("OPENAI_API_KEY");
+    }
+  });
+
+  it("limits repeated requests and recovers after the window", () => {
+    let now = 0;
+    const tracker = createRateLimitTracker({
+      windowMs: 1_000,
+      maxRequests: 2,
+      now: () => now
+    });
+
+    expect(tracker.check("ip:a").allowed).toBe(true);
+    expect(tracker.check("ip:a").allowed).toBe(true);
+    expect(tracker.check("ip:a").allowed).toBe(false);
+    expect(tracker.check("ip:b").allowed).toBe(true);
+
+    now = 1_001;
+
+    expect(tracker.check("ip:a").allowed).toBe(true);
+  });
+
+  it("prunes expired rate limit buckets and keeps active buckets", () => {
+    let now = 0;
+    const tracker = createRateLimitTracker({
+      windowMs: 100,
+      maxRequests: 1,
+      cleanupIntervalMs: 50,
+      now: () => now
+    });
+
+    tracker.check("ip:a");
+    tracker.check("ip:b");
+    tracker.check("ip:c");
+    expect(tracker.size()).toBe(3);
+
+    now = 50;
+    expect(tracker.pruneExpired()).toBe(0);
+    expect(tracker.size()).toBe(3);
+
+    now = 101;
+    expect(tracker.pruneExpired()).toBe(3);
+    expect(tracker.size()).toBe(0);
+    expect(tracker.check("ip:a").allowed).toBe(true);
+  });
+
+  it("limits rate limit bucket growth by removing the earliest reset buckets", () => {
+    let now = 0;
+    const tracker = createRateLimitTracker({
+      windowMs: 1_000,
+      maxRequests: 2,
+      maxBuckets: 2,
+      cleanupIntervalMs: 10_000,
+      now: () => now
+    });
+
+    tracker.check("ip:a");
+    now = 10;
+    tracker.check("ip:b");
+    now = 20;
+    tracker.check("ip:c");
+
+    expect(tracker.size()).toBe(2);
+    expect(tracker.check("ip:b").allowed).toBe(true);
+    expect(tracker.check("ip:b").allowed).toBe(false);
+  });
+
+  it("keeps rate limit response headers when requests are rejected", () => {
+    let now = 0;
+    const limiter = createInMemoryRateLimiter({
+      windowMs: 1_000,
+      maxRequests: 1,
+      now: () => now
+    });
+    const request = { ip: "127.0.0.1", socket: {} };
+    const firstResponse = createMockResponse();
+    let nextCalled = false;
+
+    limiter(request as never, firstResponse as never, () => {
+      nextCalled = true;
+    });
+
+    expect(nextCalled).toBe(true);
+    expect(firstResponse.headers.get("RateLimit-Remaining")).toBe("0");
+    expect(firstResponse.headers.get("RateLimit-Reset")).toBe("1");
+
+    const secondResponse = createMockResponse();
+    limiter(request as never, secondResponse as never, () => {
+      throw new Error("next should not be called");
+    });
+
+    expect(secondResponse.statusCode).toBe(429);
+    expect(secondResponse.headers.get("Retry-After")).toBe("1");
+    expect(secondResponse.headers.get("RateLimit-Remaining")).toBe("0");
+    expect(secondResponse.body).toEqual({
+      error: "요청이 너무 많습니다. 잠시 후 다시 시도하세요."
+    });
+
+    now = 1_001;
+    const recoveredResponse = createMockResponse();
+    let recovered = false;
+    limiter(request as never, recoveredResponse as never, () => {
+      recovered = true;
+    });
+
+    expect(recovered).toBe(true);
+  });
+
+  it("includes risk model metadata in JSON and Markdown output", () => {
+    const result = createRuleBasedChecklist(
+      makeRequest("github", ["github.read.repo_info"], "specific_repository")
+    );
+    const json = JSON.stringify(result);
+    const markdown = checklistToMarkdown(result);
+
+    expect(json).toContain("riskModelVersion");
+    expect(json).toContain("analysisMode");
+    expect(markdown).toContain("위험 모델 버전: 1.0.0");
+    expect(markdown).toContain("분석 모드: RULE_ONLY");
+  });
 });
+
+function createMockResponse() {
+  const response = {
+    headers: new Map<string, string>(),
+    statusCode: 200,
+    body: undefined as unknown,
+    setHeader(name: string, value: string) {
+      this.headers.set(name, String(value));
+      return this;
+    },
+    status(statusCode: number) {
+      this.statusCode = statusCode;
+      return this;
+    },
+    json(body: unknown) {
+      this.body = body;
+      return this;
+    }
+  };
+
+  return response;
+}

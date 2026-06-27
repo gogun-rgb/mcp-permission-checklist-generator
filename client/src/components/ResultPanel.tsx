@@ -1,5 +1,8 @@
 import { CheckCircle2, Copy, Download, ShieldAlert } from "lucide-react";
-import type { ChecklistResult } from "../types/checklist";
+import {
+  ANALYSIS_MODE_LABELS,
+  type ChecklistResult
+} from "@mcp-permission-checklist-generator/shared";
 import {
   approvalLabels,
   categoryLabels,
@@ -55,6 +58,17 @@ export function ResultPanel({ result, onNotify }: ResultPanelProps) {
           <p className="section-kicker">전체 위험도</p>
           <h2>{result.tool.name}</h2>
           <p>{result.overallRisk.summary}</p>
+          <div className="meta-badge-row" aria-label="분석 메타데이터">
+            <span className="analysis-mode-badge">
+              {ANALYSIS_MODE_LABELS[result.analysisMode]}
+            </span>
+            <span className="model-version-badge">
+              위험 모델 {result.riskModelVersion}
+            </span>
+          </div>
+          <p className="analysis-note">
+            위험 점수와 등급은 항상 규칙 엔진이 결정하고, AI는 설명만 보강합니다.
+          </p>
         </div>
         <RiskBadge level={result.overallRisk.level} score={result.overallRisk.score} />
       </div>

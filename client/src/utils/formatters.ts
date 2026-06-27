@@ -3,7 +3,7 @@ import type {
   ChecklistResult,
   PermissionCategory,
   RiskLevel
-} from "../types/checklist";
+} from "@mcp-permission-checklist-generator/shared";
 
 export const riskLabels: Record<RiskLevel, string> = {
   LOW: "LOW 낮음",
@@ -58,6 +58,8 @@ export function checklistToMarkdown(result: ChecklistResult): string {
 - MCP 종류: ${result.tool.type}
 - 사용 목적: ${escapeMarkdown(result.tool.purpose)}
 - 접근 범위: ${escapeMarkdown(result.scope.description)}
+- 위험 모델 버전: ${result.riskModelVersion}
+- 분석 모드: ${result.analysisMode}
 - 생성 시각: ${result.generatedAt}
 
 ## 전체 위험도
