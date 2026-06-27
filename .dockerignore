@@ -1,0 +1,11 @@
+node_modules
+.git
+.env
+server/.env
+client/dist
+server/dist
+packages/shared/dist
+coverage
+npm-debug.log
+work
+outputs
